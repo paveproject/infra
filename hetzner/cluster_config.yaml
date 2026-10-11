@@ -1,6 +1,12 @@
 ---
 config_format_version: 1
-hetzner_token: ${HCLOUD_TOKEN}
+# No hetzner_token key here on purpose: hetzner-k3s (v2.6.0, confirmed from
+# its own source) reads the token exclusively from the HCLOUD_TOKEN env var
+# via `ENV.fetch("HCLOUD_TOKEN", "")` as this field's default - but since
+# this class uses YAML::Serializable, a `hetzner_token:` key present in this
+# file (even a `${HCLOUD_TOKEN}`-style placeholder, which YAML has no
+# interpolation for and would be read as that literal string) OVERRIDES
+# that default. Leave this key out entirely so the real env var is used.
 cluster_name: paveproject
 kubeconfig_path: "./kubeconfig"
 k3s_version: v1.31.4+k3s1 # double check against `hetzner-k3s releases` before the first run
