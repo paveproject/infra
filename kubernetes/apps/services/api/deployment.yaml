@@ -12,6 +12,8 @@ spec:
       labels:
         app: api
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret
       containers:
         - name: api
           image: ghcr.io/paveproject/pave-api:latest
@@ -20,6 +22,14 @@ spec:
           envFrom:
             - secretRef:
                 name: api-secrets
+          # Rust, not Recomend's Node api - much lighter baseline.
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "400m"
           readinessProbe:
             httpGet:
               path: /health

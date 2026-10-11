@@ -7,4 +7,7 @@ resources:
   - service.yaml
   - ingress.yaml
   - bucket-init-job.yaml
+  - assets-sync-job.yaml
   - secret.yaml
+  - backup-secret.yaml
+  - backup-cronjob.yaml

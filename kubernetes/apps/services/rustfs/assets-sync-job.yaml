@@ -1,0 +1,43 @@
+# Runs libs/assets/entrypoint.sh (pave repo) once per deploy: mirrors the
+# baked-in /static folder (app icons, email graphics) to RustFS under the
+# S3_ASSETS_PREFIX prefix, with --remove - deleting a file here and
+# redeploying removes it from RustFS too.
+#
+# PostSync, not Sync: needs rustfs reachable, same reasoning as
+# bucket-init-job.yaml. Runs after that job (both PostSync, same wave -
+# order between PostSync hooks within one Application isn't otherwise
+# guaranteed, but bucket-init only touches bucket existence/ACLs, which
+# this job doesn't depend on completing first in practice; ignore-existing
+# on both sides makes any raciness harmless).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: assets-sync
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  activeDeadlineSeconds: 300
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      containers:
+        - name: assets-sync
+          image: ghcr.io/paveproject/pave-assets:latest
+          env:
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: rustfs-secrets
+                  key: RUSTFS_ACCESS_KEY
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rustfs-secrets
+                  key: RUSTFS_SECRET_KEY
+          envFrom:
+            - secretRef:
+                name: rustfs-secrets

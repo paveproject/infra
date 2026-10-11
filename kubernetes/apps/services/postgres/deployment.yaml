@@ -18,6 +18,8 @@ spec:
       labels:
         app: postgres
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret
       containers:
         - name: postgres
           # apps/postgres/Dockerfile in the pave repo: postgres:18-bookworm + postgis-3.
@@ -27,6 +29,16 @@ spec:
           envFrom:
             - secretRef:
                 name: postgres-credentials
+          # Sized for a single small Hetzner node (4GB total), not
+          # Recomend's multi-node pool (4-8Gi there) - revisit with
+          # `kubectl top pod` once this carries real traffic.
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "150m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql

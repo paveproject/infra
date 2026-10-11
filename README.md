@@ -28,7 +28,7 @@ bootstrap/argocd/      one-shot Helm values to get ArgoCD itself running
 hetzner/               hetzner-k3s cluster config
 kubernetes/
   core/                ArgoCD, cert-manager, External Secrets Operator, external-dns - the cluster's own infra
-  apps/                the actual Pave services (postgres, redis, api, notify, rustfs)
+  apps/                the actual Pave services (postgres, redis, api, notify, rustfs, db-migrator, ghcr-pull-secret)
 cli/                   the bootstrap/status CLI
 ```
 
@@ -81,13 +81,20 @@ Every other key below needs a real value in Infisical, by service:
 | api | `AUTH_SECRET`, `API_URL`, `REDIS_HOST`, `REDIS_PORT`, `S3_ENDPOINT`, `S3_PUBLIC_ENDPOINT`, `S3_REGION`, `S3_BUCKET_PUBLIC` |
 | notify | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (+ `REDIS_HOST`/`PORT`/`PASSWORD` and `S3_PUBLIC_ENDPOINT`/`S3_BUCKET_PUBLIC`, all shared) |
 | rustfs | `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY` (+ `S3_BUCKET_PUBLIC`, shared with api) |
+| rustfs (backup target) | same `BACKUP_S3_*` keys as postgres's backup target - one R2 bucket, two CronJobs writing under different prefixes |
 | argocd | `ARGOCD_WEBHOOK_SECRET` |
 | external-dns | `CLOUDFLARE_API_TOKEN` |
+| ghcr-pull-secret | `GHCR_PULL_USERNAME`, `GHCR_PULL_TOKEN` (a GitHub PAT with `read:packages`) |
 
 `BACKUP_S3_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY` are named `BACKUP_S3_*`
 in Infisical since this isn't actually AWS - the `postgres-backup-target`
 Secret still exposes them locally as `AWS_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY`
 because that's what the `aws` CLI auto-detects.
+
+`ghcr-pull-secret` is consumed as `imagePullSecrets` by every Deployment/
+Job pulling a `ghcr.io/paveproject/pave-*` image. If those packages are
+public (the plan), it's simply unused - harmless either way, and it means
+switching any of them back to private later needs no manifest change.
 
 **One-time setup required before the first real deploy:**
 
@@ -97,6 +104,7 @@ because that's what the `aws` CLI auto-detects.
 4. For `pave`'s mobile CI secrets: in the Infisical project, Integrations → GitHub sync → point at `paveproject/pave` (**repository** scope, not organization - org-level Actions secrets need a paid GitHub plan for private repos), mapping each secret to the exact GitHub secret name already referenced in that repo's workflows.
 5. For the ArgoCD webhook: on `paveproject/infra` → Settings → Webhooks → Add webhook, payload URL `https://argocd.paveproject.org/api/webhook`, content type `application/json`, secret = the same value as `ARGOCD_WEBHOOK_SECRET`, event = push only.
 6. For `CLOUDFLARE_API_TOKEN`: in the Cloudflare dashboard, create an API token (not the Global API Key) scoped to **Zone → DNS → Edit**, restricted to the `paveproject.org` zone only.
+7. For `GHCR_PULL_USERNAME`/`GHCR_PULL_TOKEN`: only needed if `ghcr.io/paveproject/pave-*` packages are private - a GitHub PAT with `read:packages`, scoped to this org if you make it fine-grained.
 
 ## Domains
 

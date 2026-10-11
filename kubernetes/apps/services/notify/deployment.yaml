@@ -12,9 +12,19 @@ spec:
       labels:
         app: notify
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret
       containers:
         - name: notify
           image: ghcr.io/paveproject/pave-notify:latest
           envFrom:
             - secretRef:
                 name: notify-secrets
+          # Rust, not Recomend's Node worker - much lighter baseline.
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "250m"
