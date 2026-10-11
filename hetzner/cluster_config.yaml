@@ -46,3 +46,20 @@ masters_pool:
     - nbg1
 
 worker_node_pools: []
+
+# hetzner-k3s disables every addon below by default (even the ones k3s
+# itself normally bundles) unless explicitly turned on here - confirmed
+# from its own source (src/configuration/models/addons.cr: Toggle.new(false)
+# for traefik/metrics_server, ClusterAutoscaler's own `enabled: Bool = true`
+# default for that one instead). The comment above (masters_pool) already
+# assumed Traefik would be running; this is what actually makes that true.
+addons:
+  traefik:
+    enabled: true
+  metrics_server:
+    enabled: true
+  # No worker_node_pools to scale (single fixed master node, see above) -
+  # left enabled (its own default) it just crash-loops forever with
+  # nothing to do.
+  cluster_autoscaler:
+    enabled: false
