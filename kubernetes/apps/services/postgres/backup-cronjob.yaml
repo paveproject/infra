@@ -19,6 +19,17 @@ spec:
           containers:
             - name: pg-backup
               image: ghcr.io/paveproject/pave-postgres:latest
+              # BACKUP_S3_BUCKET/ENDPOINT: edit directly here once you've created
+              # the backup bucket (R2/B2/etc.) - not secret, just config.
+              env:
+                - name: POSTGRES_USER
+                  value: pave
+                - name: POSTGRES_DB
+                  value: pave
+                - name: BACKUP_S3_BUCKET
+                  value: CHANGE_ME
+                - name: BACKUP_S3_ENDPOINT
+                  value: CHANGE_ME
               envFrom:
                 - secretRef:
                     name: postgres-credentials

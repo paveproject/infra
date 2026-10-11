@@ -17,6 +17,21 @@ spec:
           image: ghcr.io/paveproject/pave-api:latest
           ports:
             - containerPort: 3002
+          env:
+            - name: API_URL
+              value: https://api.paveproject.org
+            - name: REDIS_HOST
+              value: redis
+            - name: REDIS_PORT
+              value: "6379"
+            - name: S3_ENDPOINT
+              value: http://rustfs:9000
+            - name: S3_PUBLIC_ENDPOINT
+              value: https://medias.paveproject.org
+            - name: S3_REGION
+              value: us-east-1
+            - name: S3_BUCKET
+              value: avatars
           envFrom:
             - secretRef:
                 name: api-secrets

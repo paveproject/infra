@@ -53,12 +53,35 @@ Identity. Each service under `kubernetes/apps/services/*` has a plain
 keys map to which local Secret keys - no ciphertext, just references;
 ESO re-syncs every hour (`refreshInterval: 1h`).
 
+**Only real credentials go through Infisical.** Everything else
+(hostnames, ports, public URLs, bucket names, region) is a plain `env:`
+entry committed directly in the Deployment/CronJob - no reason to route
+non-sensitive config through a secrets manager.
+
+The actual keys that need a value in Infisical, by service:
+
+| Service | Key(s) |
+|---|---|
+| postgres | `POSTGRES_PASSWORD` |
+| postgres (backup target) | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` |
+| redis | `REDIS_PASSWORD` (shared by redis, api, notify) |
+| api | `AUTH_SECRET`, `DATABASE_URL`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` |
+| notify | `RESEND_API_KEY` |
+| rustfs | `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY` (**must match** api's `S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY`) |
+| argocd | `GITHUB_WEBHOOK_SECRET` |
+
+`DATABASE_URL` is a secret because it embeds `POSTGRES_PASSWORD`:
+`postgres://pave:<POSTGRES_PASSWORD>@postgres:5432/pave` - the Rust code
+appends its own `?options=...` search_path suffix at runtime, don't add
+it here.
+
 **One-time setup required before the first real deploy:**
 
 1. Create a project on [eu.infisical.com](https://eu.infisical.com), note its project slug and create an environment (e.g. `prod`) - then fill in `projectSlug`/`environmentSlug` in `kubernetes/core/services/external-secrets/clustersecretstore.yaml` (currently a `CHANGE_ME` placeholder).
-2. In that environment, add every key referenced by an `ExternalSecret`'s `remoteRef.key` across `kubernetes/apps/services/*/secret.yaml` (e.g. `POSTGRES_PASSWORD`, `AUTH_SECRET`, `RESEND_API_KEY`, `RUSTFS_ACCESS_KEY`, ...) with real values.
+2. In that environment, add every key from the table above with real values. Generate random ones locally (never paste a real secret value into a chat/log): `openssl rand -hex 32` for `AUTH_SECRET`/`GITHUB_WEBHOOK_SECRET`, `openssl rand -hex 24` for `POSTGRES_PASSWORD`/`REDIS_PASSWORD`. `RESEND_API_KEY` comes from resend.com; the backup target (`AWS_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY`) and its bucket/endpoint (edited directly in `postgres/backup-cronjob.yaml`, not secret) come from whichever S3-compatible provider you pick for backups.
 3. Create a Machine Identity (Universal Auth) scoped to read that project/environment, generate a Client ID + Client Secret - the CLI's `install` step prompts for these (or pass via `INFISICAL_MACHINE_IDENTITY_CLIENT_ID`/`_SECRET` env vars) and stores them as the `infisical-auth` Secret the `ClusterSecretStore` reads.
 4. For `pave`'s mobile CI secrets: in the Infisical project, Integrations → GitHub sync → point at `paveproject/pave`, mapping each secret to the exact GitHub secret name already referenced in that repo's workflows.
+5. For the ArgoCD webhook: on `paveproject/infra` → Settings → Webhooks → Add webhook, payload URL `https://argocd.paveproject.org/api/webhook`, content type `application/json`, secret = the same value as `GITHUB_WEBHOOK_SECRET`, event = push only.
 
 ## Domains
 
