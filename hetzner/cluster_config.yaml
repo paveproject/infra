@@ -50,13 +50,22 @@ worker_node_pools: []
 # hetzner-k3s disables every addon below by default (even the ones k3s
 # itself normally bundles) unless explicitly turned on here - confirmed
 # from its own source (src/configuration/models/addons.cr: Toggle.new(false)
-# for traefik/metrics_server, ClusterAutoscaler's own `enabled: Bool = true`
-# default for that one instead). The comment above (masters_pool) already
-# assumed Traefik would be running; this is what actually makes that true.
+# for traefik/metrics_server/servicelb, ClusterAutoscaler's own
+# `enabled: Bool = true` default for that one instead). The comment above
+# (masters_pool) already assumed Traefik would be running; this is what
+# actually makes that true.
 addons:
   traefik:
     enabled: true
   metrics_server:
+    enabled: true
+  # k3s' bundled lightweight LoadBalancer controller ("Klipper") - without
+  # it, Traefik's own Service (type: LoadBalancer) never gets an external
+  # IP assigned (stays <pending> forever), since there's no real Hetzner
+  # Load Balancer resource here for hcloud-cloud-controller-manager to
+  # bind it to instead (that's the whole "No Hetzner Load Balancer" point
+  # above - this node's own public IP is what gets assigned here).
+  servicelb:
     enabled: true
   # No worker_node_pools to scale (single fixed master node, see above) -
   # left enabled (its own default) it just crash-loops forever with
