@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: notify
-          image: ghcr.io/paveproject/pave-notify:latest
+          image: ghcr.io/paveproject/notify:latest
           envFrom:
             - secretRef:
                 name: notify-secrets
