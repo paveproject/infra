@@ -1,0 +1,38 @@
+# One-shot: creates the avatars (public-read) and imports (private) buckets.
+# Mirrors docker-compose.yaml's rustfs-setup service.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rustfs-bucket-init
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: rustfs-bucket-init
+          image: rustfs/rc:latest
+          envFrom:
+            - secretRef:
+                name: rustfs-secrets
+          env:
+            - name: S3_BUCKET
+              value: avatars
+            - name: S3_IMPORTS_BUCKET
+              value: imports
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Waiting for RustFS..."
+              until rc alias set myrustfs http://rustfs:9000 "${RUSTFS_ACCESS_KEY}" "${RUSTFS_SECRET_KEY}"; do
+                sleep 2
+              done
+
+              rc bucket create --ignore-existing "myrustfs/${S3_BUCKET}"
+              rc bucket anonymous set download "myrustfs/${S3_BUCKET}"
+              echo "Bucket ${S3_BUCKET} ready and set to public read."
+
+              rc bucket create --ignore-existing "myrustfs/${S3_IMPORTS_BUCKET}"
+              echo "Bucket ${S3_IMPORTS_BUCKET} ready - private, no anonymous access."

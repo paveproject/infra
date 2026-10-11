@@ -1,0 +1,46 @@
+# A single replica backed by a ReadWriteOnce PVC - `Recreate` strategy is
+# required, not the default `RollingUpdate`: that would try to start a
+# second pod mounting the same PVC before killing the first, and get stuck
+# forever (ReadWriteOnce only ever allows one mounter).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          # apps/postgres/Dockerfile in the pave repo: postgres:18-bookworm + postgis-3.
+          image: ghcr.io/paveproject/pave-postgres:latest
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: postgres-credentials
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "pave"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "pave"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-data

@@ -1,0 +1,44 @@
+# Logical backup (pg_dump, compressed, streamed straight to S3-compatible
+# storage) - not Velero. A volume snapshot would copy WAL/indexes/bloat
+# block-for-block, isn't portable across storage classes, and can't be
+# restored into a different Postgres version. This is smaller, versioned
+# by filename, and restorable anywhere `psql` runs.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+spec:
+  schedule: "0 3 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: pg-backup
+              image: ghcr.io/paveproject/pave-postgres:latest
+              envFrom:
+                - secretRef:
+                    name: postgres-credentials
+                - secretRef:
+                    name: postgres-backup-target
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  echo "Starting postgres backup..."
+
+                  which aws >/dev/null 2>&1 || (apt-get update && apt-get install -y --no-install-recommends awscli)
+
+                  DATE=$(date +"%Y-%m-%d_%H-%M-%S")
+                  FILENAME="pave-postgres-${DATE}.sql.gz"
+                  S3_PATH="s3://${BACKUP_S3_BUCKET}/postgres/${FILENAME}"
+
+                  PGPASSWORD="${POSTGRES_PASSWORD}" pg_dump \
+                    -h postgres -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -Z 9 \
+                    | aws s3 cp - "${S3_PATH}" --endpoint-url="${BACKUP_S3_ENDPOINT}"
+
+                  echo "Backup done: ${S3_PATH}"

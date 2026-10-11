@@ -1,0 +1,17 @@
+# HTTP-01 challenge via Traefik (bundled in k3s) - no wildcard domains
+# needed (3 fixed subdomains), so no DNS provider API token/secret at all,
+# unlike a DNS-01 setup.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-http01
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: hello@paveproject.org
+    privateKeySecretRef:
+      name: letsencrypt-http01-account-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: traefik

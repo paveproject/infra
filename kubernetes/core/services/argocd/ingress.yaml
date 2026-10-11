@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-server
+  namespace: argocd
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-http01
+    # ArgoCD's server runs with `--insecure` (plain HTTP internally, see
+    # bootstrap/argocd/values.yaml) - TLS is terminated here instead.
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - argocd.paveproject.org
+      secretName: argocd-server-tls
+  rules:
+    - host: argocd.paveproject.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  name: http

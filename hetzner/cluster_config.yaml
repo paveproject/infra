@@ -1,0 +1,42 @@
+---
+config_format_version: 1
+hetzner_token: ${HCLOUD_TOKEN}
+cluster_name: paveproject
+kubeconfig_path: "./kubeconfig"
+k3s_version: v1.31.4+k3s1 # double check against `hetzner-k3s releases` before the first run
+
+networking:
+  ssh:
+    port: 22
+    use_agent: false
+    public_key_path: "~/.ssh/id_ed25519.pub"
+    private_key_path: "~/.ssh/id_ed25519"
+  allowed_networks:
+    ssh:
+      - 0.0.0.0/0
+    api:
+      - 0.0.0.0/0
+  public_network:
+    ipv4: true
+    ipv6: true
+  private_network:
+    enabled: true
+    subnet: 10.0.0.0/16
+    existing_network_name: ""
+  cni:
+    enabled: true
+
+# Single node for v1 - it's both the control plane and the only worker.
+# No Hetzner Load Balancer: Traefik (bundled in k3s) binds this node's
+# public IP directly, DNS A records point straight at it. Add a
+# worker_node_pools entry (and, once there's more than one node, a Hetzner
+# LB) later without touching anything else in this repo.
+schedule_workloads_on_masters: true
+
+masters_pool:
+  instance_type: cx23
+  instance_count: 1
+  locations:
+    - nbg1
+
+worker_node_pools: []
