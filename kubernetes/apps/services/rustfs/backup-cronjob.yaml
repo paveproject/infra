@@ -1,7 +1,10 @@
-# Mirrors the avatars bucket to the same R2 target postgres backs up to,
-# under its own rustfs-data/ prefix. No --remove: files deleted locally
-# stay in the backup (safety net against accidental deletion, not just
-# data loss).
+# Mirrors every bucket on this RustFS instance to the same R2 target
+# postgres backs up to, under its own rustfs-data/ prefix - not just the
+# one public bucket api/notify know about. "local/" with no bucket name
+# is the whole alias (every bucket), so a future second bucket (private
+# uploads, etc.) is covered automatically, no change needed here.
+# No --remove: files deleted locally stay in the backup (safety net
+# against accidental deletion, not just data loss).
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -29,11 +32,6 @@ spec:
                     secretKeyRef:
                       name: rustfs-secrets
                       key: RUSTFS_SECRET_KEY
-                - name: LOCAL_BUCKET
-                  valueFrom:
-                    secretKeyRef:
-                      name: rustfs-secrets
-                      key: S3_BUCKET_PUBLIC
               envFrom:
                 - secretRef:
                     name: rustfs-backup-target
@@ -47,6 +45,6 @@ spec:
                   rc alias set local http://rustfs:9000 "${LOCAL_ACCESS_KEY}" "${LOCAL_SECRET_KEY}"
                   rc alias set backup "${BACKUP_S3_ENDPOINT}" "${BACKUP_S3_ACCESS_KEY_ID}" "${BACKUP_S3_SECRET_ACCESS_KEY}"
 
-                  rc mirror --overwrite "local/${LOCAL_BUCKET}/" "backup/${BACKUP_S3_BUCKET}/rustfs-data/${LOCAL_BUCKET}/"
+                  rc mirror --overwrite "local/" "backup/${BACKUP_S3_BUCKET}/rustfs-data/"
 
                   echo "RustFS mirror complete."

@@ -110,7 +110,7 @@ switching any of them back to private later needs no manifest change.
 
 - `api.paveproject.org` - the Pave API
 - `argocd.paveproject.org` - ArgoCD UI
-- `medias.paveproject.org` - RustFS (S3-compatible storage, public avatars bucket)
+- `medias.paveproject.org` - RustFS (S3-compatible storage, public bucket named by `S3_BUCKET_PUBLIC`)
 
 All three are managed automatically by `external-dns` - it watches every
 Ingress and keeps Cloudflare A records pointed at whatever IP Traefik
