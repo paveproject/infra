@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: ghcr.io/paveproject/api:latest
+          image: ghcr.io/paveproject/pave-api:latest
           ports:
             - containerPort: 3002
           envFrom:

@@ -18,7 +18,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: pg-backup
-              image: ghcr.io/paveproject/postgres:latest
+              image: ghcr.io/paveproject/pave-postgres:latest
               envFrom:
                 - secretRef:
                     name: postgres-credentials
