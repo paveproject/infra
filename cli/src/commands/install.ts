@@ -18,8 +18,6 @@ const STEPS = [
   prerequisitesStep,
   provisionClusterStep,
   waitNodesReadyStep,
-  // infisical-auth secret must exist before external-secrets syncs -
-  // every ExternalSecret stays in an auth-error state until it does.
   infisicalSecretStep,
   installArgocdStep,
   applyRootAppStep,
