@@ -7,6 +7,4 @@ resources:
   - service.yaml
   - ingress.yaml
   - bucket-init-job.yaml
-
-generators:
-  - ksops-generator.yaml
+  - secret.yaml

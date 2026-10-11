@@ -19,6 +19,8 @@ bun start status   # jump straight to status
 ```
 
 Requires `HCLOUD_TOKEN` (a Hetzner Cloud API token) in the environment.
+Optionally `INFISICAL_MACHINE_IDENTITY_CLIENT_ID`/`_SECRET` (step 5 below
+prompts interactively if unset).
 
 ## Sections
 
@@ -32,17 +34,18 @@ order from `src/steps/`, numbered, each a plain `ListrTask<InstallCtx>` —
 and why**, read those before changing one:
 
 1. Read cluster shape from `hetzner/cluster_config.yaml`.
-2. Check required tools (`hetzner-k3s`, `helm`, `kubectl`, `sops`,
-   `age-keygen`) and that `HCLOUD_TOKEN` is set.
-3. Generate/reuse Age key, wire it into `.sops.yaml`.
-4. `hetzner-k3s create --config hetzner/cluster_config.yaml` — provisions
+2. Check required tools (`hetzner-k3s`, `helm`, `kubectl`) and that
+   `HCLOUD_TOKEN` is set.
+3. `hetzner-k3s create --config hetzner/cluster_config.yaml` — provisions
    the node(s), installs k3s, writes `./kubeconfig`. One call replaces
    what would otherwise be a multi-step provisioner dance.
-5. Wait for all nodes to go `Ready`.
-6. Create the `sops-age` secret in the `argocd` namespace — **before**
-   ArgoCD installs, since its repo-server mounts this secret as a volume.
-7. Install ArgoCD (`helm upgrade --install` — idempotent, safe every run).
-8. Apply `kubernetes/core/root.yaml` — ArgoCD takes over from here
+4. Wait for all nodes to go `Ready`.
+5. Create the `infisical-auth` secret (Machine Identity Client ID +
+   Secret) in the `external-secrets` namespace — **before** ArgoCD
+   installs `external-secrets`, so its `ClusterSecretStore` is valid as
+   soon as the CRDs land instead of sitting in an auth-error state.
+6. Install ArgoCD (`helm upgrade --install` — idempotent, safe every run).
+7. Apply `kubernetes/core/root.yaml` — ArgoCD takes over from here
    (idempotent `kubectl apply`).
 
 Safe to re-run end to end at any time — `hetzner-k3s create` itself diffs
@@ -58,10 +61,10 @@ offers to fix what it can, without fighting GitOps:
   unhealthy, the fix re-runs the ArgoCD install step.
 - **Root app-of-apps** — checked as an ArgoCD `Application` named `root`.
   If missing, the fix re-applies `kubernetes/core/root.yaml`.
-- Everything else (`cert-manager`, the nested `apps-root` app-of-apps,
-  `postgres`, `redis`, `api`, `notify`, `rustfs`) — checked as ArgoCD
-  `Application` health/sync status. The fix requests a hard refresh;
-  actual reconciliation is still ArgoCD's job
+- Everything else (`cert-manager`, `external-secrets`, the nested
+  `apps-root` app-of-apps, `postgres`, `redis`, `api`, `notify`,
+  `rustfs`) — checked as ArgoCD `Application` health/sync status. The fix
+  requests a hard refresh; actual reconciliation is still ArgoCD's job
   (`automated: { prune: true, selfHeal: true }` on every Application).
 
 ### Later

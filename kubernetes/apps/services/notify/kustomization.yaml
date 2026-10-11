@@ -3,6 +3,4 @@ kind: Kustomization
 
 resources:
   - deployment.yaml
-
-generators:
-  - ksops-generator.yaml
+  - secret.yaml

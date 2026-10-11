@@ -7,22 +7,20 @@ import { kubeconfigPath } from "../lib/paths.js";
 
 import { loadContextStep } from "../steps/00-load-context.js";
 import { prerequisitesStep } from "../steps/01-prerequisites.js";
-import { ageKeyStep } from "../steps/02-age-key.js";
 import { provisionClusterStep } from "../steps/03-provision-cluster.js";
 import { waitNodesReadyStep } from "../steps/04-wait-nodes-ready.js";
-import { sopsSecretStep } from "../steps/05-sops-secret.js";
+import { infisicalSecretStep } from "../steps/05-infisical-secret.js";
 import { installArgocdStep } from "../steps/06-install-argocd.js";
 import { applyRootAppStep } from "../steps/07-apply-root-app.js";
 
 const STEPS = [
   loadContextStep,
   prerequisitesStep,
-  ageKeyStep,
   provisionClusterStep,
   waitNodesReadyStep,
-  // sops-age secret must exist BEFORE ArgoCD installs — its repo-server
-  // mounts it as a volume, and a missing Secret hangs the pod forever.
-  sopsSecretStep,
+  // infisical-auth secret must exist before external-secrets syncs -
+  // every ExternalSecret stays in an auth-error state until it does.
+  infisicalSecretStep,
   installArgocdStep,
   applyRootAppStep,
 ];
@@ -74,20 +72,13 @@ export async function runInstall() {
     "Next steps",
   );
 
-  if (!clusterAlreadyUp) {
-    p.note(
-      "Copy ~/.config/sops/age/paveproject-infra.txt somewhere safe (password manager) RIGHT NOW — it's the only way to decrypt any secret in this repo.",
-      "Back up the Age key",
-    );
-  }
-
   p.outro(pc.green("Cluster is up. ArgoCD now owns kubernetes/core and kubernetes/apps."));
 }
 
 /** Re-install just ArgoCD — used by the status command when it's missing or unhealthy. */
 export async function runInstallArgocdOnly() {
   const tasks = new Listr<InstallCtx>(
-    [loadContextStep, ageKeyStep, sopsSecretStep, installArgocdStep],
+    [loadContextStep, infisicalSecretStep, installArgocdStep],
     { concurrent: false, exitOnError: true },
   );
   await tasks.run({ clusterAlreadyUp: true } as InstallCtx);

@@ -6,8 +6,6 @@ const REQUIRED = [
   { bin: "hetzner-k3s", brew: "vitobotta/tap/hetzner-k3s" },
   { bin: "helm", brew: "helm" },
   { bin: "kubectl", brew: "kubectl" },
-  { bin: "sops", brew: "sops" },
-  { bin: "age-keygen", brew: "age" },
 ];
 
 /** Doc: these run on your laptop/workstation, not on the cluster nodes themselves. */

@@ -6,6 +6,5 @@ resources:
   - deployment.yaml
   - service.yaml
   - backup-cronjob.yaml
-
-generators:
-  - ksops-generator.yaml
+  - secret.yaml
+  - backup-secret.yaml

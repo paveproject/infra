@@ -5,6 +5,4 @@ resources:
   - deployment.yaml
   - service.yaml
   - ingress.yaml
-
-generators:
-  - ksops-generator.yaml
+  - secret.yaml

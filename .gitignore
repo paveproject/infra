@@ -1,5 +1,4 @@
 kubeconfig
-*.age
 node_modules/
 .env
 .DS_Store
