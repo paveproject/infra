@@ -20,7 +20,7 @@ spec:
             - name: ghcr-pull-secret
           containers:
             - name: pg-backup
-              image: ghcr.io/paveproject/pave-postgres:latest
+              image: ghcr.io/paveproject/pave-postgres:b14-8b8b39e
               envFrom:
                 - secretRef:
                     name: postgres-credentials

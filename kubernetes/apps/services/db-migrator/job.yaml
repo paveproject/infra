@@ -23,7 +23,7 @@ spec:
         - name: ghcr-pull-secret
       containers:
         - name: db-migrator
-          image: ghcr.io/paveproject/pave-db:latest
+          image: ghcr.io/paveproject/pave-db:b14-8b8b39e
           env:
             - name: DATABASE_URL
               valueFrom:
