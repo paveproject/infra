@@ -1,0 +1,33 @@
+# Watches every Ingress in the cluster (api/argocd/rustfs - 3 hosts under
+# paveproject.org) and keeps Cloudflare A records in sync with whatever
+# IP Traefik's status.loadBalancer actually reports - no more manual DNS.
+provider: cloudflare
+
+env:
+  - name: CF_API_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: cloudflare-api-token
+        key: api-token
+
+sources:
+  - ingress
+
+extraArgs:
+  - --cloudflare-proxied
+  - --managed-record-types=A
+  - --exclude-target-net=10.0.0.0/8
+  - --exclude-target-net=fd00::/8
+
+policy: sync
+registry: txt
+txtOwnerId: "paveproject"
+interval: "1m"
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi

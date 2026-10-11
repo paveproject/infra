@@ -87,6 +87,7 @@ const CHECKS = [
   checkRootApp,
   argoAppCheck("cert-manager", "cert-manager"),
   argoAppCheck("external-secrets", "External Secrets Operator"),
+  argoAppCheck("external-dns", "external-dns"),
   argoAppCheck("apps-root", "Apps app-of-apps"),
   argoAppCheck("postgres", "Postgres"),
   argoAppCheck("redis", "Redis"),
