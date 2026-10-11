@@ -20,7 +20,9 @@ bun start status   # jump straight to status
 
 Requires `HCLOUD_TOKEN` (a Hetzner Cloud API token) in the environment.
 Optionally `INFISICAL_MACHINE_IDENTITY_CLIENT_ID`/`_SECRET` (step 5 below
-prompts interactively if unset).
+prompts interactively if unset). Copy `.env.example` to `.env` (gitignored)
+to set these once instead of exporting them every shell session — Bun
+auto-loads `cli/.env`, no extra config needed.
 
 ## Sections
 
