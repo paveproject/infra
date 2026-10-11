@@ -78,7 +78,7 @@ Every other key below needs a real value in Infisical, by service:
 | postgres | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` |
 | postgres (backup target) | `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, `BACKUP_S3_BUCKET`, `BACKUP_S3_ENDPOINT` |
 | redis | `REDIS_PASSWORD` (shared by redis, api, notify) |
-| api | `AUTH_SECRET`, `API_URL`, `REDIS_HOST`, `REDIS_PORT`, `S3_ENDPOINT`, `S3_PUBLIC_ENDPOINT`, `S3_REGION`, `S3_BUCKET_PUBLIC` |
+| api | `AUTH_SECRET`, `API_URL`, `REDIS_HOST`, `REDIS_PORT`, `S3_ENDPOINT`, `S3_PUBLIC_ENDPOINT`, `S3_REGION`, `S3_BUCKET_PUBLIC`, `API_INTERNAL_VERSION_POLICY_SECRET`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_PRIVATE_KEY`, `APP_STORE_CONNECT_APP_ID`, `APP_STORE_CONNECT_WEBHOOK_SECRET` |
 | notify | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (+ `REDIS_HOST`/`PORT`/`PASSWORD` and `S3_PUBLIC_ENDPOINT`/`S3_BUCKET_PUBLIC`, all shared) |
 | rustfs | `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY` (+ `S3_BUCKET_PUBLIC`, shared with api) |
 | rustfs (backup target) | same `BACKUP_S3_*` keys as postgres's backup target - one R2 bucket, two CronJobs writing under different prefixes |
@@ -96,10 +96,34 @@ Job pulling a `ghcr.io/paveproject/pave-*` image. If those packages are
 public (the plan), it's simply unused - harmless either way, and it means
 switching any of them back to private later needs no manifest change.
 
+`API_INTERNAL_VERSION_POLICY_SECRET` is the bearer secret `pave`'s CD uses
+to report a shipped mobile version (see `pave`'s
+`.github/workflows/mobile-router.yml` and
+`apps/api/src/app/internal/version_policy`) - generate it yourself
+(`openssl rand -hex 32`), it isn't tied to any external provider. It also
+needs to reach GitHub Actions: map it in Infisical's GitHub sync
+integration to the `INFISICAL_API_INTERNAL_VERSION_POLICY_SECRET` secret on
+`paveproject/pave` (see step 4 below) - the 5 `APP_STORE_CONNECT_*` keys
+below don't, they're only ever read by the API itself.
+
+`APP_STORE_CONNECT_KEY_ID`/`_ISSUER_ID`/`_PRIVATE_KEY`/`_APP_ID` and
+`APP_STORE_CONNECT_WEBHOOK_SECRET` back `apps/api/src/libs/app_store_connect.rs`
+and `apps/api/src/app/webhooks/app_store_connect` - confirming a new iOS
+version is actually live on the App Store. `KEY_ID`/`ISSUER_ID`/`PRIVATE_KEY`
+come from an App Store Connect API key (Users and Access → Integrations →
+App Store Connect API); `APP_ID` is the app's numeric Apple ID (App
+Information → Apple ID, same value as `pave`'s `apps/mobile/eas.json`
+`ascAppId`); `WEBHOOK_SECRET` is whatever value you set when creating the
+Webhook subscription in App Store Connect (pointed at
+`https://api.paveproject.org/webhooks/app-store-connect`, subscribed to the
+"État de la version de l'app" / App Store Version State event) - it must
+match exactly what's in Infisical, since that's what the HMAC signature
+check in `webhook-app-store-connect/guard.rs` verifies against.
+
 **One-time setup required before the first real deploy:**
 
 1. Create a project on [eu.infisical.com](https://eu.infisical.com), note its project slug and create an environment (e.g. `prod`) - then fill in `projectSlug`/`environmentSlug` in `kubernetes/core/services/external-secrets/clustersecretstore.yaml` (currently a `CHANGE_ME` placeholder).
-2. In that environment, add every key from the table above with real values. Generate random ones locally (never paste a real secret value into a chat/log): `openssl rand -hex 32` for `AUTH_SECRET`/`ARGOCD_WEBHOOK_SECRET`, `openssl rand -hex 24` for `POSTGRES_PASSWORD`/`REDIS_PASSWORD`, `openssl rand -hex 12`/`-hex 32` for `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY`. `RESEND_API_KEY` comes from resend.com; `BACKUP_S3_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY`/`_BUCKET`/`_ENDPOINT` come from whichever S3-compatible provider you pick for backups.
+2. In that environment, add every key from the table above with real values. Generate random ones locally (never paste a real secret value into a chat/log): `openssl rand -hex 32` for `AUTH_SECRET`/`ARGOCD_WEBHOOK_SECRET`/`API_INTERNAL_VERSION_POLICY_SECRET`, `openssl rand -hex 24` for `POSTGRES_PASSWORD`/`REDIS_PASSWORD`, `openssl rand -hex 12`/`-hex 32` for `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY`. `RESEND_API_KEY` comes from resend.com; `BACKUP_S3_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY`/`_BUCKET`/`_ENDPOINT` come from whichever S3-compatible provider you pick for backups.
 3. Create a Machine Identity (Universal Auth) scoped to read that project/environment, generate a Client ID + Client Secret - the CLI's `install` step prompts for these (or pass via `INFISICAL_MACHINE_IDENTITY_CLIENT_ID`/`_SECRET` env vars) and stores them as the `infisical-auth` Secret the `ClusterSecretStore` reads.
 4. For `pave`'s mobile CI secrets: in the Infisical project, Integrations → GitHub sync → point at `paveproject/pave` (**repository** scope, not organization - org-level Actions secrets need a paid GitHub plan for private repos), mapping each secret to the exact GitHub secret name already referenced in that repo's workflows.
 5. For the ArgoCD webhook: on `paveproject/infra` → Settings → Webhooks → Add webhook, payload URL `https://argocd.paveproject.org/api/webhook`, content type `application/json`, secret = the same value as `ARGOCD_WEBHOOK_SECRET`, event = push only.
