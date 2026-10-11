@@ -69,6 +69,8 @@ wouldn't mean anything outside this cluster anyway. Same reasoning for
 `S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY`: api is just another S3 client
 of the same rustfs instance, so it templates them straight from rustfs's
 own `RUSTFS_ACCESS_KEY`/`SECRET_KEY` instead of a second typed-in copy.
+Same for notify's `ASSETS_BASE_URL` - just `S3_PUBLIC_ENDPOINT` +
+`S3_BUCKET_PUBLIC` + `/static`, templated, not its own key.
 
 Every other key below needs a real value in Infisical, by service:
 
@@ -78,9 +80,9 @@ Every other key below needs a real value in Infisical, by service:
 | postgres (backup target) | `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, `BACKUP_S3_BUCKET`, `BACKUP_S3_ENDPOINT` |
 | redis | `REDIS_PASSWORD` (shared by redis, api, notify) |
 | api | `AUTH_SECRET`, `API_URL`, `REDIS_HOST`, `REDIS_PORT`, `S3_ENDPOINT`, `S3_PUBLIC_ENDPOINT`, `S3_REGION`, `S3_BUCKET_PUBLIC` |
-| notify | `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `ASSETS_BASE_URL` (+ `REDIS_HOST`/`PORT`/`PASSWORD`, shared) |
+| notify | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (+ `REDIS_HOST`/`PORT`/`PASSWORD` and `S3_PUBLIC_ENDPOINT`/`S3_BUCKET_PUBLIC`, all shared) |
 | rustfs | `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY` (+ `S3_BUCKET_PUBLIC`, shared with api) |
-| argocd | `GITHUB_WEBHOOK_SECRET` |
+| argocd | `ARGOCD_WEBHOOK_SECRET` |
 
 `BACKUP_S3_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY` are named `BACKUP_S3_*`
 in Infisical since this isn't actually AWS - the `postgres-backup-target`
@@ -90,10 +92,10 @@ because that's what the `aws` CLI auto-detects.
 **One-time setup required before the first real deploy:**
 
 1. Create a project on [eu.infisical.com](https://eu.infisical.com), note its project slug and create an environment (e.g. `prod`) - then fill in `projectSlug`/`environmentSlug` in `kubernetes/core/services/external-secrets/clustersecretstore.yaml` (currently a `CHANGE_ME` placeholder).
-2. In that environment, add every key from the table above with real values. Generate random ones locally (never paste a real secret value into a chat/log): `openssl rand -hex 32` for `AUTH_SECRET`/`GITHUB_WEBHOOK_SECRET`, `openssl rand -hex 24` for `POSTGRES_PASSWORD`/`REDIS_PASSWORD`, `openssl rand -hex 12`/`-hex 32` for `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY`. `RESEND_API_KEY` comes from resend.com; `BACKUP_S3_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY`/`_BUCKET`/`_ENDPOINT` come from whichever S3-compatible provider you pick for backups.
+2. In that environment, add every key from the table above with real values. Generate random ones locally (never paste a real secret value into a chat/log): `openssl rand -hex 32` for `AUTH_SECRET`/`ARGOCD_WEBHOOK_SECRET`, `openssl rand -hex 24` for `POSTGRES_PASSWORD`/`REDIS_PASSWORD`, `openssl rand -hex 12`/`-hex 32` for `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY`. `RESEND_API_KEY` comes from resend.com; `BACKUP_S3_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY`/`_BUCKET`/`_ENDPOINT` come from whichever S3-compatible provider you pick for backups.
 3. Create a Machine Identity (Universal Auth) scoped to read that project/environment, generate a Client ID + Client Secret - the CLI's `install` step prompts for these (or pass via `INFISICAL_MACHINE_IDENTITY_CLIENT_ID`/`_SECRET` env vars) and stores them as the `infisical-auth` Secret the `ClusterSecretStore` reads.
 4. For `pave`'s mobile CI secrets: in the Infisical project, Integrations → GitHub sync → point at `paveproject/pave`, mapping each secret to the exact GitHub secret name already referenced in that repo's workflows.
-5. For the ArgoCD webhook: on `paveproject/infra` → Settings → Webhooks → Add webhook, payload URL `https://argocd.paveproject.org/api/webhook`, content type `application/json`, secret = the same value as `GITHUB_WEBHOOK_SECRET`, event = push only.
+5. For the ArgoCD webhook: on `paveproject/infra` → Settings → Webhooks → Add webhook, payload URL `https://argocd.paveproject.org/api/webhook`, content type `application/json`, secret = the same value as `ARGOCD_WEBHOOK_SECRET`, event = push only.
 
 ## Domains
 
