@@ -24,11 +24,6 @@ spec:
           image: ghcr.io/paveproject/pave-postgres:latest
           ports:
             - containerPort: 5432
-          env:
-            - name: POSTGRES_USER
-              value: pave
-            - name: POSTGRES_DB
-              value: pave
           envFrom:
             - secretRef:
                 name: postgres-credentials

@@ -15,15 +15,6 @@ spec:
       containers:
         - name: notify
           image: ghcr.io/paveproject/pave-notify:latest
-          env:
-            - name: ASSETS_BASE_URL
-              value: https://medias.paveproject.org/avatars/static
-            - name: REDIS_HOST
-              value: redis
-            - name: REDIS_PORT
-              value: "6379"
-            - name: RESEND_FROM_EMAIL
-              value: "Pavé <hello@paveproject.org>"
           envFrom:
             - secretRef:
                 name: notify-secrets

@@ -15,9 +15,6 @@ spec:
           envFrom:
             - secretRef:
                 name: rustfs-secrets
-          env:
-            - name: S3_BUCKET_PUBLIC
-              value: avatars
           command:
             - /bin/sh
             - -c
