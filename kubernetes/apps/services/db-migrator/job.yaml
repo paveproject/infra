@@ -1,0 +1,30 @@
+# Runs once per deploy: Drizzle migrate+seed, then better-auth-rs's
+# `auth` schema setup (see pave repo's libs/db/Dockerfile /
+# scripts/migrate-all.sh). Both steps read a single DATABASE_URL - reused
+# straight from api-secrets (same Postgres credentials, no second copy).
+#
+# A Sync hook, not a normal tracked resource: Job.spec.template is
+# immutable, so a plain `kubectl apply` would fail the moment the image
+# tag changes on a new deploy. BeforeHookCreation deletes the previous
+# run's Job first, every sync.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migrator
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: db-migrator
+          image: ghcr.io/paveproject/pave-db:latest
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: api-secrets
+                  key: DATABASE_URL

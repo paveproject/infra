@@ -3,6 +3,11 @@ kind: Application
 metadata:
   name: notify
   namespace: argocd
+  annotations:
+    # Explicit, even though 0 is the default. notify never touches
+    # Postgres directly, so it doesn't strictly need db-migrator - kept
+    # at the same wave as api for consistency with the rest of apps-root.
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   project: default
   source:
