@@ -45,6 +45,15 @@ spec:
                   rc alias set local http://rustfs:9000 "${LOCAL_ACCESS_KEY}" "${LOCAL_SECRET_KEY}"
                   rc alias set backup "${BACKUP_S3_ENDPOINT}" "${BACKUP_S3_ACCESS_KEY_ID}" "${BACKUP_S3_SECRET_ACCESS_KEY}"
 
-                  rc mirror --overwrite "local/" "backup/${BACKUP_S3_BUCKET}/rustfs-data/"
+                  # "local/" with no bucket name isn't a valid `mirror` source
+                  # (confirmed: "Invalid path: Bucket name cannot be empty") -
+                  # unlike `bucket list`, which does accept a bare alias. List
+                  # every bucket and mirror each one under its own name instead,
+                  # so a future second bucket is still covered automatically,
+                  # no change needed here.
+                  for bucket in $(rc bucket list local/ --json | jq -r '.items[].key'); do
+                    echo "Mirroring bucket: ${bucket}"
+                    rc mirror --overwrite "local/${bucket}/" "backup/${BACKUP_S3_BUCKET}/rustfs-data/${bucket}/"
+                  done
 
                   echo "RustFS mirror complete."
