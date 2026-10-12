@@ -1,0 +1,96 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "50"
+spec:
+  project: default
+  sources:
+    - repoURL: 'https://prometheus-community.github.io/helm-charts'
+      chart: kube-prometheus-stack
+      targetRevision: 79.7.1
+      helm:
+        valuesObject:
+          grafana:
+            enabled: false
+
+          alertmanager:
+            enabled: false
+
+          kubeStateMetrics:
+            enabled: false
+
+          nodeExporter:
+            enabled: false
+
+          defaultRules:
+            create: false
+
+          # pvc-autoresizer reads kubelet_volume_stats_* from this target;
+          # disabling it silently stops PVC auto-resize.
+          kubelet:
+            enabled: true
+            serviceMonitor:
+              # k3s is a single binary, so its kubelet metrics endpoint also
+              # serves the embedded apiserver and etcd - filter down to only
+              # what pvc-autoresizer queries, same reasoning as disabling the
+              # kubeApiServer/kubeEtcd monitors below.
+              metricRelabelings:
+                - sourceLabels: [__name__]
+                  regex: kubelet_volume_stats_.*
+                  action: keep
+              cAdvisor: false
+              probes: false
+          kubeApiServer:
+            enabled: false
+          kubeControllerManager:
+            enabled: false
+          kubeScheduler:
+            enabled: false
+          kubeProxy:
+            enabled: false
+          kubeEtcd:
+            enabled: false
+          coreDns:
+            enabled: false
+
+          prometheus:
+            prometheusSpec:
+              retention: 2d
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 384Mi
+                limits:
+                  cpu: 500m
+                  memory: 1Gi
+              storageSpec:
+                volumeClaimTemplate:
+                  spec:
+                    storageClassName: hcloud-volumes
+                    accessModes: ["ReadWriteOnce"]
+                    resources:
+                      requests:
+                        # Lowering this needs the StatefulSet and its PVC deleted
+                        # so the operator rebuilds both: a volumeClaimTemplate is
+                        # immutable and a Hetzner volume cannot shrink in place.
+                        storage: 10Gi
+
+    - repoURL: https://github.com/paveproject/infra.git
+      targetRevision: main
+      path: kubernetes/core/services/monitoring
+      directory:
+        recurse: true
+
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

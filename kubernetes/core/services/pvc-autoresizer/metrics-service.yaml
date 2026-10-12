@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pvc-autoresizer-metrics
+  namespace: pvc-autoresizer
+  labels:
+    app.kubernetes.io/name: pvc-autoresizer
+spec:
+  ports:
+    - name: metrics
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app.kubernetes.io/instance: pvc-autoresizer
+    app.kubernetes.io/name: pvc-autoresizer

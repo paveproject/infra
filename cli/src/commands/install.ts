@@ -9,17 +9,30 @@ import { loadContextStep } from "../steps/00-load-context.js";
 import { prerequisitesStep } from "../steps/01-prerequisites.js";
 import { provisionClusterStep } from "../steps/03-provision-cluster.js";
 import { waitNodesReadyStep } from "../steps/04-wait-nodes-ready.js";
-import { infisicalSecretStep } from "../steps/05-infisical-secret.js";
-import { installArgocdStep } from "../steps/06-install-argocd.js";
-import { applyRootAppStep } from "../steps/07-apply-root-app.js";
+import { installExternalSecretsStep } from "../steps/05-install-external-secrets.js";
+import { infisicalSecretStep } from "../steps/06-infisical-secret.js";
+import { clusterSecretStoreStep } from "../steps/07-cluster-secret-store.js";
+import { installArgocdStep } from "../steps/08-install-argocd.js";
+import { argocdRepoCredentialsStep } from "../steps/09-argocd-repo-credentials.js";
+import { applyRootAppStep } from "../steps/10-apply-root-app.js";
 
+/**
+ * The bootstrap layer, in dependency order. Everything after the root app
+ * is GitOps: ArgoCD owns cert-manager, external-dns, the apps and the
+ * rest. ESO and its ClusterSecretStore are deliberately here and not in
+ * ArgoCD - see steps 05 and 09 for why a repo that may go private forces
+ * that.
+ */
 const STEPS = [
   loadContextStep,
   prerequisitesStep,
   provisionClusterStep,
   waitNodesReadyStep,
+  installExternalSecretsStep,
   infisicalSecretStep,
+  clusterSecretStoreStep,
   installArgocdStep,
+  argocdRepoCredentialsStep,
   applyRootAppStep,
 ];
 
@@ -75,8 +88,17 @@ export async function runInstall() {
 
 /** Re-install just ArgoCD — used by the status command when it's missing or unhealthy. */
 export async function runInstallArgocdOnly() {
+  const tasks = new Listr<InstallCtx>([loadContextStep, installArgocdStep], {
+    concurrent: false,
+    exitOnError: true,
+  });
+  await tasks.run({ clusterAlreadyUp: true } as InstallCtx);
+}
+
+/** Re-install just ESO + its store — used by the status command when ESO is missing. */
+export async function runInstallExternalSecretsOnly() {
   const tasks = new Listr<InstallCtx>(
-    [loadContextStep, infisicalSecretStep, installArgocdStep],
+    [loadContextStep, installExternalSecretsStep, infisicalSecretStep, clusterSecretStoreStep],
     { concurrent: false, exitOnError: true },
   );
   await tasks.run({ clusterAlreadyUp: true } as InstallCtx);

@@ -12,10 +12,11 @@ import { kubeconfigPath } from "../lib/paths.js";
  * can't bootstrap its own auth secret from a ClusterSecretStore that
  * needs that same secret to exist first).
  *
- * Runs BEFORE ArgoCD installs external-secrets so the ClusterSecretStore
- * is immediately valid once ESO's CRDs land - nothing mounts this as a
- * volume (unlike the old sops-age Secret), so there's no FailedMount risk,
- * but every ExternalSecret stays stuck in an auth error until this exists.
+ * Runs after ESO itself is installed (step 05) and before the
+ * ClusterSecretStore is applied (step 07), so the store is immediately
+ * valid - nothing mounts this as a volume (unlike the old sops-age
+ * Secret), so there's no FailedMount risk, but every ExternalSecret stays
+ * stuck in an auth error until this exists.
  *
  * Safe to re-run: skips prompting if the Secret already exists. Accepts
  * INFISICAL_MACHINE_IDENTITY_CLIENT_ID/_SECRET env vars (same pattern as

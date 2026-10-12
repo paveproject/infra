@@ -24,13 +24,22 @@ See `cli/README.md` for what each step does.
 ## Layout
 
 ```
-bootstrap/argocd/      one-shot Helm values to get ArgoCD itself running
-hetzner/               hetzner-k3s cluster config
+bootstrap/argocd/           one-shot Helm values to get ArgoCD running, plus its repo-read credential
+bootstrap/external-secrets/ one-shot Helm values for External Secrets Operator (ESO)
+bootstrap/infisical/        the ClusterSecretStore every ExternalSecret in the repo points at
+hetzner/                    hetzner-k3s cluster config
 kubernetes/
-  core/                ArgoCD, cert-manager, External Secrets Operator, external-dns - the cluster's own infra
+  core/                ArgoCD, cert-manager, external-dns, monitoring, pvc-autoresizer - the cluster's own infra
   apps/                the actual Pave services (postgres, redis, api, notify, rustfs, db-migrator, ghcr-pull-secret)
 cli/                   the bootstrap/status CLI
 ```
+
+ESO, its `infisical-auth` Secret and the `ClusterSecretStore` all live in
+`bootstrap/`, applied imperatively by `cli/` rather than as ArgoCD
+`Application`s - see `cli/README.md` steps 5-7. They're the root of trust
+for every other Secret in the cluster, including the one that lets ArgoCD
+read this repo at all (step 9) - so none of them can depend on ArgoCD
+already being able to do that.
 
 `core` and `apps` are each their own ArgoCD app-of-apps (`core/root.yaml`,
 and `core/applications/apps-root.yaml` nesting into `apps/applications`) -
@@ -45,10 +54,11 @@ secrets (synced separately via Infisical's GitHub integration, see that
 repo). Nothing sensitive is ever committed here.
 
 In-cluster, [External Secrets Operator](https://external-secrets.io)
-(`kubernetes/core/services/external-secrets/`) pulls from Infisical via
-a `ClusterSecretStore` named `infisical`, authenticated with a Machine
-Identity. Each service under `kubernetes/apps/services/*` has a plain
-`ExternalSecret` manifest (e.g. `secret.yaml`) listing which Infisical
+(installed imperatively, see `bootstrap/external-secrets/` and `cli/
+README.md`) pulls from Infisical via a `ClusterSecretStore` named
+`infisical` (`bootstrap/infisical/secretstore.yaml`), authenticated with
+a Machine Identity. Each service under `kubernetes/apps/services/*` has
+a plain `ExternalSecret` manifest (e.g. `secret.yaml`) listing which Infisical
 keys map to which local Secret keys - no ciphertext, just references;
 ESO re-syncs every hour (`refreshInterval: 1h`).
 
@@ -84,7 +94,7 @@ Every other key below needs a real value in Infisical, by service:
 | rustfs (backup target) | same `BACKUP_S3_*` keys as postgres's backup target - one R2 bucket, two CronJobs writing under different prefixes |
 | argocd | `ARGOCD_WEBHOOK_SECRET` |
 | external-dns | `CLOUDFLARE_API_TOKEN` |
-| ghcr-pull-secret | `GHCR_PULL_USERNAME`, `GHCR_PULL_TOKEN` (a GitHub PAT with `read:packages`) |
+| argocd + ghcr-pull-secret | `GITHUB_USERNAME`, `GITHUB_TOKEN` - one classic GitHub PAT, shared by both (see below) |
 
 `BACKUP_S3_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY` are named `BACKUP_S3_*`
 in Infisical since this isn't actually AWS - the `postgres-backup-target`
@@ -94,7 +104,15 @@ because that's what the `aws` CLI auto-detects.
 `ghcr-pull-secret` is consumed as `imagePullSecrets` by every Deployment/
 Job pulling a `ghcr.io/paveproject/pave-*` image. If those packages are
 public (the plan), it's simply unused - harmless either way, and it means
-switching any of them back to private later needs no manifest change.
+switching any of them back to private later needs no manifest change. It
+reads the same `GITHUB_USERNAME`/`GITHUB_TOKEN` as the ArgoCD repository
+credential below, not a separate GHCR-only PAT - one classic GitHub token
+with both `repo` and `read:packages` scopes covers git clone and package
+pull. Everything that needs it lives in the `pave` namespace, so a plain
+`ExternalSecret` is enough; if a second namespace ever needs it too,
+switch to a `ClusterExternalSecret` with a `namespaceSelector` instead of
+duplicating the manifest (`recomendapp/infra`'s `kubernetes/core/services/
+ghcr-pull-secret` does exactly that, across more namespaces).
 
 `API_INTERNAL_VERSION_POLICY_SECRET` is the bearer secret `pave`'s CD uses
 to report a shipped mobile version (see `pave`'s
@@ -122,13 +140,15 @@ check in `webhook-app-store-connect/guard.rs` verifies against.
 
 **One-time setup required before the first real deploy:**
 
-1. Create a project on [eu.infisical.com](https://eu.infisical.com), note its project slug and create an environment (e.g. `prod`) - then fill in `projectSlug`/`environmentSlug` in `kubernetes/core/services/external-secrets/clustersecretstore.yaml` (currently a `CHANGE_ME` placeholder).
+1. Create a project named `pave` on [eu.infisical.com](https://eu.infisical.com) with a `prod` environment (or adjust `projectSlug`/`environmentSlug` in `bootstrap/infisical/secretstore.yaml` to match whatever you actually named them).
 2. In that environment, add every key from the table above with real values. Generate random ones locally (never paste a real secret value into a chat/log): `openssl rand -hex 32` for `AUTH_SECRET`/`ARGOCD_WEBHOOK_SECRET`/`API_INTERNAL_VERSION_POLICY_SECRET`, `openssl rand -hex 24` for `POSTGRES_PASSWORD`/`REDIS_PASSWORD`, `openssl rand -hex 12`/`-hex 32` for `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY`. `RESEND_API_KEY` comes from resend.com; `BACKUP_S3_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY`/`_BUCKET`/`_ENDPOINT` come from whichever S3-compatible provider you pick for backups.
 3. Create a Machine Identity (Universal Auth) scoped to read that project/environment, generate a Client ID + Client Secret - the CLI's `install` step prompts for these (or pass via `INFISICAL_MACHINE_IDENTITY_CLIENT_ID`/`_SECRET` env vars) and stores them as the `infisical-auth` Secret the `ClusterSecretStore` reads.
 4. For `pave`'s mobile CI secrets: in the Infisical project, Integrations → GitHub sync → point at `paveproject/pave` (**repository** scope, not organization - org-level Actions secrets need a paid GitHub plan for private repos), mapping each secret to the exact GitHub secret name already referenced in that repo's workflows.
 5. For the ArgoCD webhook: on `paveproject/infra` → Settings → Webhooks → Add webhook, payload URL `https://argocd.paveproject.org/api/webhook`, content type `application/json`, secret = the same value as `ARGOCD_WEBHOOK_SECRET`, event = push only.
 6. For `CLOUDFLARE_API_TOKEN`: in the Cloudflare dashboard, create an API token (not the Global API Key) scoped to **Zone → DNS → Edit**, restricted to the `paveproject.org` zone only.
-7. For `GHCR_PULL_USERNAME`/`GHCR_PULL_TOKEN`: only needed if `ghcr.io/paveproject/pave-*` packages are private - a GitHub PAT with `read:packages`, scoped to this org if you make it fine-grained.
+7. For `GITHUB_USERNAME`/`GITHUB_TOKEN`: one **classic** GitHub PAT (scopes aren't per-repo on classic tokens, which is what lets one token cover both uses below) with `repo` + `read:packages` scopes. Used by:
+   - ArgoCD's own credential to clone `paveproject/infra` (`bootstrap/argocd/github-repo.yaml`, applied by `cli/` step 9) - harmless while this repo is public, required the moment it's switched to private, since ArgoCD would otherwise be unable to read any manifest here at all, including the one that updates this credential.
+   - `ghcr-pull-secret`, only needed if `ghcr.io/paveproject/pave-*` packages are private.
 
 ## Domains
 
@@ -141,3 +161,32 @@ Ingress and keeps Cloudflare A records pointed at whatever IP Traefik
 reports, no manual DNS entry needed. `--cloudflare-proxied`: traffic is
 proxied through Cloudflare (hidden origin IP, their WAF/DDoS protection),
 which is transparent to cert-manager's HTTP-01 challenges.
+
+## Storage
+
+PVCs for stateful services (`postgres`, `rustfs`) grow on their own via
+[pvc-autoresizer](https://github.com/topolvm/pvc-autoresizer)
+(`kubernetes/core/applications/pvc-autoresizer.yaml`): each PVC carries
+`resize.topolvm.io/threshold`/`/increase`/`/storage_limit` annotations
+(see `kubernetes/apps/services/{postgres,rustfs}/pvc.yaml`), and the
+controller bumps `spec.resources.requests.storage` once usage crosses
+the threshold, up to the limit - no manual `kubectl edit pvc` the day a
+volume fills up.
+
+It needs two things the Hetzner CSI driver doesn't provide by default:
+
+- **Usage metrics.** `kubernetes/core/applications/monitoring.yaml`
+  installs a deliberately minimal `kube-prometheus-stack` (just
+  Prometheus itself, scraping only `kubelet_volume_stats_*` - no
+  Grafana/Alertmanager/kube-state-metrics/node-exporter, 2d retention)
+  purely so pvc-autoresizer's controller has something to query.
+- **Resize-ability on the StorageClass.** The Hetzner CSI driver's
+  `hcloud-volumes` StorageClass doesn't carry pvc-autoresizer's
+  `resize.topolvm.io/enabled: "true"` annotation out of the box;
+  `kubernetes/core/applications/hcloud-volumes-patch.yaml` patches it in
+  via server-side apply without taking ownership of (and so without
+  ArgoCD ever trying to recreate) the rest of that resource.
+
+Both are small enough to run on a single cx23 node alongside everything
+else, but they're not free - see the resource requests/limits in
+`monitoring.yaml` and `pvc-autoresizer.yaml` if the node ever feels tight.

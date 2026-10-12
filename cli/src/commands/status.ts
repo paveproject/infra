@@ -8,7 +8,7 @@ import {
   refreshArgoApplication,
 } from "../lib/kubectl.js";
 import { coreRootAppPath } from "../lib/paths.js";
-import { runApplyRootApp, runInstallArgocdOnly } from "./install.js";
+import { runApplyRootApp, runInstallArgocdOnly, runInstallExternalSecretsOnly } from "./install.js";
 
 type Health = "ok" | "degraded" | "missing";
 
@@ -49,6 +49,29 @@ async function checkArgocd(): Promise<CheckResult> {
   };
 }
 
+/** ESO is bootstrap-imperative, not an ArgoCD Application - checked the same way as ArgoCD itself. */
+async function checkExternalSecrets(): Promise<CheckResult> {
+  const installed = await helmReleaseExists("external-secrets", "external-secrets");
+  if (!installed) {
+    return {
+      key: "external-secrets",
+      label: "External Secrets Operator",
+      health: "missing",
+      detail: "helm release not found",
+      fix: { label: "Install ESO + ClusterSecretStore", run: runInstallExternalSecretsOnly },
+    };
+  }
+  const dep = await getDeploymentReady("external-secrets", "external-secrets");
+  const health: Health = dep && dep.ready === dep.desired && dep.desired > 0 ? "ok" : "degraded";
+  return {
+    key: "external-secrets",
+    label: "External Secrets Operator",
+    health,
+    detail: dep ? `external-secrets ${dep.ready}/${dep.desired} ready` : "external-secrets deployment not found",
+    fix: health === "ok" ? undefined : { label: "Re-run ESO install", run: runInstallExternalSecretsOnly },
+  };
+}
+
 async function checkRootApp(): Promise<CheckResult> {
   const app = await getArgoApplication("root");
   if (!app) {
@@ -83,10 +106,10 @@ function argoAppCheck(key: string, label: string) {
 
 const CHECKS = [
   checkNodes,
+  checkExternalSecrets,
   checkArgocd,
   checkRootApp,
   argoAppCheck("cert-manager", "cert-manager"),
-  argoAppCheck("external-secrets", "External Secrets Operator"),
   argoAppCheck("external-dns", "external-dns"),
   argoAppCheck("apps-root", "Apps app-of-apps"),
   argoAppCheck("ghcr-pull-secret", "GHCR pull secret"),
