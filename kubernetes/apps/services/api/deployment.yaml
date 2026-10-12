@@ -16,7 +16,7 @@ spec:
         - name: ghcr-pull-secret
       containers:
         - name: api
-          image: ghcr.io/paveproject/pave-api:b14-8b8b39e
+          image: ghcr.io/paveproject/pave-api:b16-d02db9d
           ports:
             - containerPort: 3002
           envFrom:
