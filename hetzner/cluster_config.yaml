@@ -22,6 +22,26 @@ networking:
       - 0.0.0.0/0
     api:
       - 0.0.0.0/0
+    # hetzner-k3s's own cloud firewall only opens 22/SSH, 6443/k8s-api,
+    # ICMP, the 30000-32767 NodePort range, and the private network - it
+    # never opens 80/443 itself, even though Traefik's Service (via
+    # servicelb, see the addons section below) binds exactly those ports
+    # on this node's public IP. Without these, every inbound connection on
+    # 80/443 is dropped at the Hetzner firewall before it ever reaches
+    # Traefik - confirmed via the Hetzner API directly.
+    custom_firewall_rules:
+      - description: "Allow HTTP (Traefik)"
+        protocol: tcp
+        port: "80"
+        source_ips:
+          - 0.0.0.0/0
+          - ::/0
+      - description: "Allow HTTPS (Traefik)"
+        protocol: tcp
+        port: "443"
+        source_ips:
+          - 0.0.0.0/0
+          - ::/0
   public_network:
     ipv4: true
     ipv6: true
