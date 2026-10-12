@@ -1,0 +1,38 @@
+# Applied imperatively by cli/ (src/steps/09-argocd-repo-credentials.ts),
+# not GitOps-managed: this *is* what lets ArgoCD clone paveproject/infra in
+# the first place, so it cannot depend on ArgoCD already being able to read
+# a manifest from that same repo. Works whether the repo is public or
+# private - a Git credential ArgoCD doesn't need is simply unused, so this
+# runs unconditionally rather than only once the repo is flipped private.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: github-repo
+  namespace: argocd
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: infisical
+
+  target:
+    name: github-repo
+    creationPolicy: Owner
+    template:
+      metadata:
+        labels:
+          argocd.argoproj.io/secret-type: repository
+      type: Opaque
+      data:
+        type: git
+        url: https://github.com/paveproject/infra.git
+        username: "{{ .username }}"
+        password: "{{ .token }}"
+
+  data:
+    - secretKey: username
+      remoteRef:
+        key: GITHUB_USERNAME
+    - secretKey: token
+      remoteRef:
+        key: GITHUB_TOKEN

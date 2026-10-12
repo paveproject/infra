@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hcloud-volumes-patch
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/paveproject/infra.git'
+    targetRevision: main
+    path: kubernetes/core/services/hcloud-volumes-patch
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - group: storage.k8s.io
+      kind: StorageClass
+      name: hcloud-volumes
+      jsonPointers:
+        - /provisioner
+        - /parameters
+        - /reclaimPolicy
+        - /volumeBindingMode
+        - /allowVolumeExpansion

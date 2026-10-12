@@ -19,10 +19,15 @@ bun start status   # jump straight to status
 ```
 
 Requires `HCLOUD_TOKEN` (a Hetzner Cloud API token) in the environment.
-Optionally `INFISICAL_MACHINE_IDENTITY_CLIENT_ID`/`_SECRET` (step 5 below
+Optionally `INFISICAL_MACHINE_IDENTITY_CLIENT_ID`/`_SECRET` (step 6 below
 prompts interactively if unset). Copy `.env.example` to `.env` (gitignored)
 to set these once instead of exporting them every shell session — Bun
 auto-loads `cli/.env`, no extra config needed.
+
+Step 9 (ArgoCD repository credentials) needs `GITHUB_USERNAME`/
+`GITHUB_TOKEN` in Infisical — see the top-level README's Secrets section.
+Harmless while this repo stays public; required the moment it's flipped
+private.
 
 ## Sections
 
@@ -42,13 +47,23 @@ and why**, read those before changing one:
    the node(s), installs k3s, writes `./kubeconfig`. One call replaces
    what would otherwise be a multi-step provisioner dance.
 4. Wait for all nodes to go `Ready`.
-5. Create the `infisical-auth` secret (Machine Identity Client ID +
-   Secret) in the `external-secrets` namespace — **before** ArgoCD
-   installs `external-secrets`, so its `ClusterSecretStore` is valid as
-   soon as the CRDs land instead of sitting in an auth-error state.
-6. Install ArgoCD (`helm upgrade --install` — idempotent, safe every run).
-7. Apply `kubernetes/core/root.yaml` — ArgoCD takes over from here
-   (idempotent `kubectl apply`).
+5. Install External Secrets Operator (`helm upgrade --install` —
+   idempotent). Stays imperative, never GitOps-managed: it's the root of
+   trust for every Secret in the cluster, including the ArgoCD repository
+   credentials in step 9, so ArgoCD cannot be the thing that installs it
+   without a circular dependency.
+6. Create the `infisical-auth` secret (Machine Identity Client ID +
+   Secret) in the `external-secrets` namespace.
+7. Apply the `infisical` `ClusterSecretStore` and wait for it to report
+   `Ready` — every `ExternalSecret` in the repo points at this by name.
+8. Install ArgoCD (`helm upgrade --install` — idempotent, safe every run).
+9. Create ArgoCD's repository credentials (`bootstrap/argocd/
+   github-repo.yaml`, an `ExternalSecret` resolved through step 7's
+   store) and wait for it to sync. Works whether `paveproject/infra` is
+   public or private — this is what lets step 10 actually succeed once
+   it's flipped private.
+10. Apply `kubernetes/core/root.yaml` — ArgoCD takes over from here
+    (idempotent `kubectl apply`).
 
 Safe to re-run end to end at any time — `hetzner-k3s create` itself diffs
 the running cluster against the config file.
@@ -59,11 +74,15 @@ the running cluster against the config file.
 offers to fix what it can, without fighting GitOps:
 
 - **Cluster nodes** — checked directly via `kubectl` (not ArgoCD-managed).
+- **External Secrets Operator** — checked via its Helm release +
+  Deployment, same as ArgoCD below (not an ArgoCD `Application` — see
+  step 5). If missing or unhealthy, the fix re-runs ESO + the
+  `infisical-auth` secret + the `ClusterSecretStore`.
 - **ArgoCD** — checked via its Helm release + Deployment. If missing or
   unhealthy, the fix re-runs the ArgoCD install step.
 - **Root app-of-apps** — checked as an ArgoCD `Application` named `root`.
   If missing, the fix re-applies `kubernetes/core/root.yaml`.
-- Everything else (`cert-manager`, `external-secrets`, the nested
+- Everything else (`cert-manager`, `external-dns`, the nested
   `apps-root` app-of-apps, `postgres`, `redis`, `api`, `notify`,
   `rustfs`) — checked as ArgoCD `Application` health/sync status. The fix
   requests a hard refresh; actual reconciliation is still ArgoCD's job

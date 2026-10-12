@@ -86,3 +86,33 @@ export async function refreshArgoApplication(name: string) {
 export async function applyManifest(path: string) {
   await execa("kubectl", ["apply", "-f", path], { env });
 }
+
+export async function crdExists(name: string): Promise<boolean> {
+  try {
+    await execa("kubectl", ["get", "crd", name], { env });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function externalSecretReady(namespace: string, name: string): Promise<boolean> {
+  try {
+    const { stdout } = await execa(
+      "kubectl",
+      [
+        "get",
+        "externalsecret",
+        name,
+        "-n",
+        namespace,
+        "-o",
+        "jsonpath={.status.conditions[?(@.type=='Ready')].status}",
+      ],
+      { env },
+    );
+    return stdout === "True";
+  } catch {
+    return false;
+  }
+}

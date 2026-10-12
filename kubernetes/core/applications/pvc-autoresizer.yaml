@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: pvc-autoresizer
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: 'https://topolvm.github.io/pvc-autoresizer/'
+      chart: pvc-autoresizer
+      targetRevision: 0.15.1
+      helm:
+        valuesObject:
+          controller:
+            args:
+              prometheusURL: "http://monitoring-kube-prometheus-prometheus.monitoring.svc:9090"
+            resources:
+              requests:
+                cpu: 50m
+                memory: 64Mi
+              limits:
+                cpu: 100m
+                memory: 128Mi
+
+    - repoURL: https://github.com/paveproject/infra.git
+      targetRevision: main
+      path: kubernetes/core/services/pvc-autoresizer
+
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: pvc-autoresizer
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
