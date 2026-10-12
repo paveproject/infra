@@ -14,6 +14,14 @@ spec:
       labels:
         app: rustfs
     spec:
+      # rustfs/rustfs's own Dockerfile runs as a fixed non-root user
+      # (UID/GID 10001, "rustfs") - without this, the PVC mounts root:root
+      # 0755 and the container can't create its data directory at all
+      # (confirmed: "mkdir /data/rustfs0: Permission denied" in a
+      # CrashLoopBackOff). fsGroup makes kubelet/the CSI driver chown the
+      # volume to this GID on mount.
+      securityContext:
+        fsGroup: 10001
       containers:
         - name: rustfs
           image: rustfs/rustfs:1.0.0-alpha.86
