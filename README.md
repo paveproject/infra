@@ -89,7 +89,7 @@ Every other key below needs a real value in Infisical, by service:
 | postgres (backup target) | `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, `BACKUP_S3_BUCKET`, `BACKUP_S3_ENDPOINT` |
 | redis | `REDIS_PASSWORD` (shared by redis, api, notify) |
 | api | `AUTH_SECRET`, `API_URL`, `REDIS_HOST`, `REDIS_PORT`, `S3_ENDPOINT`, `S3_PUBLIC_ENDPOINT`, `S3_REGION`, `S3_BUCKET_PUBLIC`, `API_INTERNAL_VERSION_POLICY_SECRET`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_PRIVATE_KEY`, `APP_STORE_CONNECT_APP_ID`, `APP_STORE_CONNECT_WEBHOOK_SECRET` |
-| notify | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (+ `REDIS_HOST`/`PORT`/`PASSWORD` and `S3_PUBLIC_ENDPOINT`/`S3_BUCKET_PUBLIC`, all shared) |
+| notify | `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY_B64`, `APNS_KEY_B64`, `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID` (+ `REDIS_HOST`/`PORT`/`PASSWORD` and `S3_ENDPOINT`/`S3_PUBLIC_ENDPOINT`/`S3_BUCKET_PUBLIC`, all shared) |
 | rustfs | `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY` (+ `S3_BUCKET_PUBLIC`, shared with api) |
 | rustfs (backup target) | same `BACKUP_S3_*` keys as postgres's backup target - one R2 bucket, two CronJobs writing under different prefixes |
 | argocd | `ARGOCD_WEBHOOK_SECRET` |
@@ -149,6 +149,8 @@ check in `webhook-app-store-connect/guard.rs` verifies against.
 7. For `GITHUB_USERNAME`/`GITHUB_TOKEN`: one **classic** GitHub PAT (scopes aren't per-repo on classic tokens, which is what lets one token cover both uses below) with `repo` + `read:packages` scopes. Used by:
    - ArgoCD's own credential to clone `paveproject/infra` (`bootstrap/argocd/github-repo.yaml`, applied by `cli/` step 9) - harmless while this repo is public, required the moment it's switched to private, since ArgoCD would otherwise be unable to read any manifest here at all, including the one that updates this credential.
    - `ghcr-pull-secret`, only needed if `ghcr.io/paveproject/pave-*` packages are private.
+8. For `FIREBASE_PROJECT_ID`/`FIREBASE_CLIENT_EMAIL`/`FIREBASE_PRIVATE_KEY_B64`: Firebase Console → ⚙️ Project Settings → **Service accounts** tab → "Generate new private key" - the downloaded JSON has `project_id`/`client_email`/`private_key`. Base64-encode just the `private_key` value (`base64 < key.pem` or equivalent) before pasting it in as `FIREBASE_PRIVATE_KEY_B64` - dodges the multiline-secret problem, same reasoning as `APNS_KEY_B64` below.
+9. For `APNS_KEY_B64`/`APNS_KEY_ID`/`APNS_TEAM_ID`/`APNS_BUNDLE_ID`: an APNs authentication key is scoped to your whole Apple Developer **team**, not one app - reuse the same key across every app on that team rather than creating a new one (Apple caps how many you can have). Apple Developer → Certificates, Identifiers & Profiles → Keys → "+", check "Apple Push Notifications service (APNs)" → Register → download the `.p8` (downloadable once) and note its Key ID. Base64-encode the `.p8` file's content for `APNS_KEY_B64`. `APNS_TEAM_ID` is your Apple team id; `APNS_BUNDLE_ID` is this app's own bundle id (`org.paveproject.app`), the one value that's actually Pave-specific.
 
 ## Domains
 
