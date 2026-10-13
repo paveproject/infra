@@ -49,6 +49,12 @@ export const installExternalSecretsStep: ListrTask<InstallCtx> = {
         "--namespace",
         "external-secrets",
         "--create-namespace",
+        // Adopts the resources from the old GitOps-rendered install
+        // (same chart, so same manifests, but never a real Helm release -
+        // no ownership metadata for `helm` to recognize) instead of
+        // erroring on "already exists". Harmless to keep once adopted:
+        // every later run just confirms the same ownership again.
+        "--take-ownership",
         "--values",
         externalSecretsValuesPath,
         "--wait",
