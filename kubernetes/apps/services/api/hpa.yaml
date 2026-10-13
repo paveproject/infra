@@ -1,0 +1,39 @@
+# minReplicas/maxReplicas both 1 for now - just the structure in place
+# (metrics-server is already running, so this is a live HPA, not inert).
+# Bump maxReplicas once there's real traffic to justify it; nothing else
+# here needs to change at that point.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api
+  minReplicas: 1
+  maxReplicas: 1
+  # scaleUp takes the minimum recommendation over its window, so a spike
+  # shorter than 300s never adds a pod - only sustained load does.
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+    scaleDown:
+      stabilizationWindowSeconds: 600
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 180
+  metrics:
+    # CPU only: memory here is a flat per-pod baseline, so a memory target
+    # makes scale-up irreversible and minReplicas unreachable.
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
