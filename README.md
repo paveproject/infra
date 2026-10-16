@@ -79,7 +79,10 @@ wouldn't mean anything outside this cluster anyway. Same reasoning for
 of the same rustfs instance, so it templates them straight from rustfs's
 own `RUSTFS_ACCESS_KEY`/`SECRET_KEY` instead of a second typed-in copy.
 Same for notify's `ASSETS_BASE_URL` - just `S3_PUBLIC_ENDPOINT` +
-`S3_BUCKET_PUBLIC` + `/static`, templated, not its own key.
+`S3_BUCKET_PUBLIC` + `/static`, templated, not its own key. notify also
+templates its own `DATABASE_URL` the exact same way api does (it resolves
+push tokens/language itself, with its own connection to the same Postgres
+instance/schema - not a separate database).
 
 Every other key below needs a real value in Infisical, by service:
 
@@ -89,7 +92,7 @@ Every other key below needs a real value in Infisical, by service:
 | postgres (backup target) | `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, `BACKUP_S3_BUCKET`, `BACKUP_S3_ENDPOINT` |
 | redis | `REDIS_PASSWORD` (shared by redis, api, notify) |
 | api | `AUTH_SECRET`, `API_URL`, `REDIS_HOST`, `REDIS_PORT`, `S3_ENDPOINT`, `S3_PUBLIC_ENDPOINT`, `S3_REGION`, `S3_BUCKET_PUBLIC`, `API_INTERNAL_VERSION_POLICY_SECRET`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_PRIVATE_KEY`, `APP_STORE_CONNECT_APP_ID`, `APP_STORE_CONNECT_WEBHOOK_SECRET` |
-| notify | `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY_B64`, `APNS_KEY_B64`, `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID` (+ `REDIS_HOST`/`PORT`/`PASSWORD` and `S3_ENDPOINT`/`S3_PUBLIC_ENDPOINT`/`S3_BUCKET_PUBLIC`, all shared) |
+| notify | `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY_B64`, `APNS_KEY_B64`, `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID` (+ `REDIS_HOST`/`PORT`/`PASSWORD`, `S3_ENDPOINT`/`S3_PUBLIC_ENDPOINT`/`S3_BUCKET_PUBLIC`, and `POSTGRES_USER`/`PASSWORD`/`DB`, all shared) |
 | rustfs | `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY` (+ `S3_BUCKET_PUBLIC`, shared with api) |
 | rustfs (backup target) | same `BACKUP_S3_*` keys as postgres's backup target - one R2 bucket, two CronJobs writing under different prefixes |
 | argocd | `ARGOCD_WEBHOOK_SECRET` |
