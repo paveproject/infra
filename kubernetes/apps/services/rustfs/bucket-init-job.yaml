@@ -1,5 +1,6 @@
-# One-shot: creates the public-read bucket named by S3_BUCKET_PUBLIC
-# (whatever that's set to in Infisical, not hardcoded here).
+# One-shot: creates the public-read bucket named by S3_BUCKET_PUBLIC, and
+# the private bucket named by S3_BUCKET_PRIVATE (protest-mode uploads -
+# never given a public-read policy, unlike the one above).
 # Mirrors docker-compose.yaml's rustfs-setup service.
 #
 # PostSync, not Sync: needs rustfs's own Deployment already up and
@@ -40,3 +41,6 @@ spec:
               rc bucket create --ignore-existing "myrustfs/${S3_BUCKET_PUBLIC}"
               rc bucket anonymous set download "myrustfs/${S3_BUCKET_PUBLIC}"
               echo "Bucket ${S3_BUCKET_PUBLIC} ready and set to public read."
+
+              rc bucket create --ignore-existing "myrustfs/${S3_BUCKET_PRIVATE}"
+              echo "Bucket ${S3_BUCKET_PRIVATE} ready (private, no public-read policy)."
