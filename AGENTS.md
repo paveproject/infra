@@ -22,13 +22,37 @@ isn't ESO just another Application", this is why - don't move it.
 
 ## Operational gotchas, confirmed the hard way
 
-- **A Sync-hook Job (`db-migrator`) never re-runs on its own.** ArgoCD
-  doesn't track hook resources as persistent, and never re-triggers one
-  just because its dependencies (e.g. a Secret) finally became valid.
-  Force a fresh run: `kubectl -n argocd annotate application db-migrator
+- **A Sync-hook Job in its own Application never re-runs on its own.**
+  ArgoCD doesn't track hook resources as persistent, and an Application
+  whose *only* resource is a hook has nothing else to diff - so it never
+  decides a fresh sync is needed, even once its manifest (e.g. the image
+  tag) actually changes. Confirmed the hard way: `db-migrator` used to
+  be its own Application and silently kept running a week-old image
+  across several deploys while `api` updated normally right next to it.
+  Force a fresh run on a standalone hook Application like that:
+  `kubectl -n argocd annotate application <name>
   argocd.argoproj.io/refresh=hard --overwrite` then patch
-  `operation.sync` on it (see git history for the exact command) - don't
-  assume "Healthy" means it actually succeeded recently.
+  `operation.sync` on it (`kubectl -n argocd patch application <name>
+  --type merge -p '{"operation":{"sync":{"revision":"HEAD","prune":true}}}'`)
+  - don't assume "Healthy" means it actually succeeded recently; check
+  `.status.operationState.startedAt`, not just `.status.sync.revision`
+  (the latter updates just from comparing against git, independent of
+  whether an operation actually ran).
+
+  The real fix, not just the workaround: give the hook a *normal*
+  resource to ride along with. `db-migrator`'s Job now lives inside the
+  `api` Application (`kubernetes/apps/services/api/job-db-migrator.yaml`),
+  not its own - every deploy that bumps `api`'s Deployment image (which
+  reliably triggers a sync, since Deployments are diffed normally)
+  carries the hook along for free. Ordering against `api`'s own
+  Deployment (migrate before the new pod starts) is preserved via a
+  resource-level `argocd.argoproj.io/sync-wave: "-3"` on the Job itself,
+  not an Application-level one - that part doesn't need two Applications
+  either. Recomend's `infra` repo (`kubernetes/apps/services/backend/`)
+  bundles its own db-migrator the same way, which is what confirmed this
+  pattern actually works before migrating pave to it. If a *future*
+  hook genuinely has nothing else to ride with, this gotcha still
+  applies to it.
 - **Deleting an Application without `finalizers:
   [resources-finalizer.argocd.argoproj.io]` orphans its resources
   instead of deleting them.** They keep running, untracked by ArgoCD,

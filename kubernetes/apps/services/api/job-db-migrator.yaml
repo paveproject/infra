@@ -3,6 +3,14 @@
 # scripts/migrate-all.sh). Both steps read a single DATABASE_URL - reused
 # straight from api-secrets (same Postgres credentials, no second copy).
 #
+# Lives in the `api` Application (not its own, see AGENTS.md) precisely
+# so it rides along on every sync that already happens for a normal
+# reason (the Deployment's image bumping) - a hook with nothing else in
+# its Application to diff against never gets a fresh sync triggered on
+# its own. `sync-wave: "-3"` keeps it running before the Deployment
+# (default wave "0") within that same sync, same ordering guarantee the
+# old standalone Application gave at the Application level.
+#
 # A Sync hook, not a normal tracked resource: Job.spec.template is
 # immutable, so a plain `kubectl apply` would fail the moment the image
 # tag changes on a new deploy. BeforeHookCreation deletes the previous
@@ -14,6 +22,7 @@ metadata:
   annotations:
     argocd.argoproj.io/hook: Sync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "-3"
 spec:
   backoffLimit: 2
   template:

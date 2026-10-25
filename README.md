@@ -30,7 +30,7 @@ bootstrap/infisical/        the ClusterSecretStore every ExternalSecret in the r
 hetzner/                    hetzner-k3s cluster config
 kubernetes/
   core/                ArgoCD, cert-manager, external-dns, monitoring, pvc-autoresizer - the cluster's own infra
-  apps/                the actual Pave services (postgres, redis, api, notify, rustfs, db-migrator, ghcr-pull-secret)
+  apps/                the actual Pave services (postgres, redis, api, notify, rustfs, ghcr-pull-secret) - db-migrator rides along inside api's own Application, not a service of its own
 cli/                   the bootstrap/status CLI
 ```
 

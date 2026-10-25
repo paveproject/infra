@@ -3,10 +3,6 @@ kind: Application
 metadata:
   name: api
   namespace: argocd
-  annotations:
-    # Explicit, even though 0 is the default - needs the schema db-migrator
-    # (-3) just created to already exist on first boot.
-    argocd.argoproj.io/sync-wave: "0"
 spec:
   project: default
   source:
