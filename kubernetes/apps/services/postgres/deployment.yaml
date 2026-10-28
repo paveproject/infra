@@ -23,7 +23,7 @@ spec:
       containers:
         - name: postgres
           # apps/postgres/Dockerfile in the pave repo: postgres:18-bookworm + postgis-3.
-          image: ghcr.io/paveproject/pave-postgres:b23-9a83afa
+          image: ghcr.io/paveproject/pave-postgres:b25-1c3ef7c
           ports:
             - containerPort: 5432
           envFrom:

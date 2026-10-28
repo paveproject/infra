@@ -43,7 +43,7 @@ spec:
               mountPath: /usr/share/GeoIP
       containers:
         - name: api
-          image: ghcr.io/paveproject/pave-api:b23-9a83afa
+          image: ghcr.io/paveproject/pave-api:b25-1c3ef7c
           ports:
             - containerPort: 3002
           envFrom:
