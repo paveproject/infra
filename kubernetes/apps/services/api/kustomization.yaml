@@ -8,3 +8,4 @@ resources:
   - secret.yaml
   - hpa.yaml
   - job-db-migrator.yaml
+  - job-assets-sync.yaml

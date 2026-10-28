@@ -1,0 +1,57 @@
+# Runs libs/assets/entrypoint.sh (pave repo) once per deploy: mirrors the
+# baked-in /static folder (app icons, email graphics) to RustFS under the
+# S3_ASSETS_PREFIX prefix, with --remove - deleting a file here and
+# redeploying removes it from RustFS too.
+#
+# Lives in the `api` Application, not `rustfs`, for the same reason
+# db-migrator does (see AGENTS.md): a hook only re-runs when its
+# Application gets a sync for some *other* reason, and ArgoCD doesn't
+# diff hook resources. The rustfs Application has normal resources, but
+# none a deploy ever changes - its Deployment is pinned to an upstream
+# RustFS tag, so bumping this Job's image was the only thing the deploy
+# commit touched there, which produced no diff, no sync, and no run.
+# Confirmed the hard way: it last ran 2026-10-21 and sat out seven days
+# of deploys while reporting Synced/Healthy at the current revision
+# (`.status.sync.revision` tracks the git comparison, not whether an
+# operation happened - read `.status.operationState.startedAt`).
+# Here it rides on api's Deployment image bumping, which is diffed
+# normally and syncs every deploy.
+#
+# Still PostSync, for the same reason as bucket-init-job.yaml: it needs
+# rustfs reachable. That ordering is now stronger than when the two
+# shared an Application and raced as same-wave PostSync hooks - the
+# rustfs Application is sync-wave "-5" against api's default "0", so
+# rustfs (bucket-init included) is Healthy before this Application syncs
+# at all.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: assets-sync
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  activeDeadlineSeconds: 300
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      containers:
+        - name: assets-sync
+          image: ghcr.io/paveproject/pave-assets:b25-1c3ef7c
+          env:
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: rustfs-secrets
+                  key: RUSTFS_ACCESS_KEY
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rustfs-secrets
+                  key: RUSTFS_SECRET_KEY
+          envFrom:
+            - secretRef:
+                name: rustfs-secrets

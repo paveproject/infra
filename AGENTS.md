@@ -50,9 +50,27 @@ isn't ESO just another Application", this is why - don't move it.
   not an Application-level one - that part doesn't need two Applications
   either. Recomend's `infra` repo (`kubernetes/apps/services/backend/`)
   bundles its own db-migrator the same way, which is what confirmed this
-  pattern actually works before migrating pave to it. If a *future*
-  hook genuinely has nothing else to ride with, this gotcha still
-  applies to it.
+  pattern actually works before migrating pave to it.
+
+  **It bit a second time, in a shape worth naming separately:** an
+  Application that *does* have normal resources, none of which a deploy
+  ever changes. `assets-sync` was a PostSync hook of the `rustfs`
+  Application, whose Deployment is pinned to an upstream RustFS tag, so
+  the only thing a deploy commit touched there was the hook Job's own
+  image - which ArgoCD doesn't diff. No diff, no sync, no run: it last
+  ran 2026-10-21 and sat out seven days of deploys while reporting
+  Synced/Healthy at the current revision. So the rule is not "does the
+  Application have other resources" but "does it have a resource a
+  deploy actually changes". `assets-sync` now lives in the `api`
+  Application too (`kubernetes/apps/services/api/job-assets-sync.yaml`),
+  riding on the Deployment image bump like db-migrator. Its PostSync
+  ordering against `rustfs` got stronger, not weaker, in the move: the
+  `rustfs` Application is sync-wave "-5" against api's default "0", so
+  rustfs and its bucket-init are Healthy before `api` syncs at all,
+  where before the two hooks raced as same-wave PostSync siblings.
+
+  If a *future* hook genuinely has nothing else to ride with, this
+  gotcha still applies to it.
 - **Deleting an Application without `finalizers:
   [resources-finalizer.argocd.argoproj.io]` orphans its resources
   instead of deleting them.** They keep running, untracked by ArgoCD,
