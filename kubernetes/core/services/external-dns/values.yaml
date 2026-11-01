@@ -24,12 +24,9 @@ extraArgs:
   # A cfargotunnel.com CNAME is only reachable proxied - Cloudflare has to
   # be in the path for the tunnel to be the path.
   - --cloudflare-proxied
-  # A is listed even though nothing here wants one any more: these hostnames
-  # still carry the A records the Hetzner cluster's external-dns left
-  # behind, and Cloudflare refuses a CNAME on a name that already has an A.
-  # Managing the type it has to remove is what lets it replace rather than
-  # fail. Drop A from this list once the old records are gone.
-  - --managed-record-types=A
+  # CNAME only. A was listed while the old cluster's A records still stood -
+  # Cloudflare refuses a CNAME on a name that already has one - and they are
+  # gone now, so external-dns has no business touching that type.
   - --managed-record-types=CNAME
   - --managed-record-types=TXT
 
