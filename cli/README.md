@@ -83,9 +83,10 @@ offers to fix what it can, without fighting GitOps:
   unhealthy, the fix re-runs the ArgoCD install step.
 - **Root app-of-apps** — checked as an ArgoCD `Application` named `root`.
   If missing, the fix re-applies `kubernetes/core/root.yaml`.
-- Everything else (`argocd`'s Ingress, `traefik`, `cloudflared`, the
-  nested `apps-root` app-of-apps, `postgres`, `redis`, `api`, `notify`,
-  `rustfs`) — checked as ArgoCD `Application` health/sync status. The fix
+- Everything else (`argocd`'s Ingress, `traefik`, `cloudflared`,
+  `external-dns`, the nested `apps-root` app-of-apps, `postgres`, `redis`,
+  `api`, `notify`, `rustfs`) — checked as ArgoCD `Application`
+  health/sync status. The fix
   requests a hard refresh; actual reconciliation is still ArgoCD's job
   (`automated: { prune: true, selfHeal: true }` on every Application).
 

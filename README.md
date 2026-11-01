@@ -34,7 +34,7 @@ bootstrap/argocd/           one-shot Helm values to get ArgoCD running, plus its
 bootstrap/external-secrets/ one-shot Helm values for External Secrets Operator (ESO)
 bootstrap/infisical/        the ClusterSecretStore every ExternalSecret in the repo points at
 kubernetes/
-  core/                ArgoCD's Ingress, Traefik, cloudflared - the cluster's own infra
+  core/                ArgoCD's Ingress, Traefik, cloudflared, external-dns - the cluster's own infra
   apps/                the actual Pave services (postgres, redis, api, notify, rustfs, ghcr-pull-secret) - db-migrator rides along inside api's own Application, not a service of its own
 cli/                   the bootstrap/status CLI
 ```
@@ -102,6 +102,7 @@ Every other key below needs a real value in Infisical, by service:
 | rustfs (backup target) | same `BACKUP_S3_*` keys as postgres's backup target - one R2 bucket, two CronJobs writing under different prefixes |
 | argocd | `ARGOCD_WEBHOOK_SECRET` |
 | cloudflared | `CLOUDFLARE_TUNNEL_TOKEN` |
+| external-dns | `CLOUDFLARE_API_TOKEN` |
 | argocd + ghcr-pull-secret | `GITHUB_USERNAME`, `GITHUB_TOKEN` - one classic GitHub PAT, shared by both (see below) |
 
 `BACKUP_S3_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY` are named `BACKUP_S3_*`
@@ -153,7 +154,7 @@ check in `webhook-app-store-connect/guard.rs` verifies against.
 3. Create a Machine Identity (Universal Auth) scoped to read that project/environment, generate a Client ID + Client Secret - the CLI's `install` step prompts for these (or pass via `INFISICAL_MACHINE_IDENTITY_CLIENT_ID`/`_SECRET` env vars) and stores them as the `infisical-auth` Secret the `ClusterSecretStore` reads.
 4. For `pave`'s mobile CI secrets: in the Infisical project, Integrations → GitHub sync → point at `paveproject/pave` (**repository** scope, not organization - org-level Actions secrets need a paid GitHub plan for private repos), mapping each secret to the exact GitHub secret name already referenced in that repo's workflows.
 5. For the ArgoCD webhook: on `paveproject/infra` → Settings → Webhooks → Add webhook, payload URL `https://argocd.paveproject.org/api/webhook`, content type `application/json`, secret = the same value as `ARGOCD_WEBHOOK_SECRET`, event = push only.
-6. For `CLOUDFLARE_TUNNEL_TOKEN`: Cloudflare dashboard → Zero Trust → Networks → Tunnels → create a tunnel, copy its token, then add the three public hostnames to it. Full instructions, including the exact origin service to point them at, are in `kubernetes/core/services/cloudflared/secret.yaml`.
+6. For `CLOUDFLARE_TUNNEL_TOKEN`: Cloudflare dashboard → Zero Trust → Networks → Tunnels → create a tunnel and copy its token. That is all that is needed from the dashboard — the hostname routing is in `kubernetes/core/services/cloudflared/configmap.yaml` and the DNS records are external-dns's. For `CLOUDFLARE_API_TOKEN`: an API token (not the Global API Key) scoped to **Zone → DNS → Edit**, restricted to the `paveproject.org` zone.
 7. For `GITHUB_USERNAME`/`GITHUB_TOKEN`: one **classic** GitHub PAT (scopes aren't per-repo on classic tokens, which is what lets one token cover both uses below) with `repo` + `read:packages` scopes. Used by:
    - ArgoCD's own credential to clone `paveproject/infra` (`bootstrap/argocd/github-repo.yaml`, applied by `cli/` step 9) - harmless while this repo is public, required the moment it's switched to private, since ArgoCD would otherwise be unable to read any manifest here at all, including the one that updates this credential.
    - `ghcr-pull-secret`, only needed if `ghcr.io/paveproject/pave-*` packages are private.
@@ -166,10 +167,12 @@ check in `webhook-app-store-connect/guard.rs` verifies against.
 - `argocd.paveproject.org` - ArgoCD UI
 - `medias.paveproject.org` - RustFS (S3-compatible storage, public bucket named by `S3_BUCKET_PUBLIC`)
 
-Each one is a public hostname on the Cloudflare tunnel, and Cloudflare
-creates its CNAME when you add it — which is why there is no external-dns
-here. All three point at the same in-cluster Traefik, which routes on the
-Host header the way it always did.
+Each one is an entry in cloudflared's own config
+(`kubernetes/core/services/cloudflared/configmap.yaml`) plus an Ingress,
+and external-dns turns that Ingress into a CNAME pointing at the tunnel.
+Adding a hostname is those two files and nothing clicked anywhere. All
+three land on the same in-cluster Traefik, which routes on the Host header
+the way it always did.
 
 There is no cert-manager either. A tunnel means Cloudflare terminates TLS
 at its edge whatever the origin speaks, so a certificate on Traefik would

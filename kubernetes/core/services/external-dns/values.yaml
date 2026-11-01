@@ -1,0 +1,47 @@
+# Watches every Ingress in the cluster and keeps one Cloudflare record per
+# host, so adding a hostname is an Ingress and nothing else.
+#
+# CNAME, not A. There is no public IP to point at any more - traffic arrives
+# through the Cloudflare tunnel, whose address is
+# <tunnel-id>.cfargotunnel.com. Each Ingress names that in an
+# `external-dns.alpha.kubernetes.io/target` annotation; without it
+# external-dns would read Traefik's published endpoint
+# (traefik.traefik.svc.cluster.local, see ../traefik/kustomization.yaml)
+# and write an internal DNS name into a public zone.
+provider: cloudflare
+
+env:
+  - name: CF_API_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: cloudflare-api-token
+        key: api-token
+
+sources:
+  - ingress
+
+extraArgs:
+  # A cfargotunnel.com CNAME is only reachable proxied - Cloudflare has to
+  # be in the path for the tunnel to be the path.
+  - --cloudflare-proxied
+  # A is listed even though nothing here wants one any more: these hostnames
+  # still carry the A records the Hetzner cluster's external-dns left
+  # behind, and Cloudflare refuses a CNAME on a name that already has an A.
+  # Managing the type it has to remove is what lets it replace rather than
+  # fail. Drop A from this list once the old records are gone.
+  - --managed-record-types=A
+  - --managed-record-types=CNAME
+  - --managed-record-types=TXT
+
+policy: sync
+registry: txt
+txtOwnerId: "paveproject"
+interval: "1m"
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi

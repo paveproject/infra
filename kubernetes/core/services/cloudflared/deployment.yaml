@@ -30,18 +30,20 @@ spec:
           image: cloudflare/cloudflared:2026.10.7
           args:
             - tunnel
-            - --no-autoupdate
-            # Image tag is pinned and bumped deliberately, so let the
-            # container exit rather than rewrite its own binary.
-            - --metrics
-            - 0.0.0.0:2000
+            # --config, not --token: the token form makes cloudflared fetch
+            # its routing from Cloudflare and ignore configmap.yaml, which
+            # is how the ingress rules end up in a dashboard instead of in
+            # git. --no-autoupdate lives in the config file now.
+            - --config
+            - /etc/cloudflared/config.yaml
             - run
-          env:
-            - name: TUNNEL_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: cloudflared-token
-                  key: token
+          volumeMounts:
+            - name: config
+              mountPath: /etc/cloudflared
+              readOnly: true
+            - name: creds
+              mountPath: /etc/cloudflared/creds
+              readOnly: true
           livenessProbe:
             httpGet:
               path: /ready
@@ -67,3 +69,10 @@ spec:
             runAsUser: 65532
             capabilities:
               drop: ["ALL"]
+      volumes:
+        - name: config
+          configMap:
+            name: cloudflared-config
+        - name: creds
+          secret:
+            secretName: cloudflared-credentials

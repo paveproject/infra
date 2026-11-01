@@ -1,0 +1,36 @@
+# The tunnel's routing table, in git rather than in Cloudflare's dashboard.
+#
+# Every hostname lands on the same in-cluster Traefik, which then routes on
+# the Host header exactly as it did when this ran on a public IP - so adding
+# a hostname is one entry here plus an Ingress, and nothing has to be
+# clicked anywhere.
+#
+# http, not https. A tunnel means Cloudflare terminates TLS at its edge
+# whatever the origin speaks, so a certificate on Traefik would only encrypt
+# this hop, which never leaves the cluster's pod network. That is why there
+# is no cert-manager here and why Traefik does not redirect 80 -> 443.
+#
+# `tunnel:` must match the TunnelID inside CLOUDFLARE_TUNNEL_TOKEN. It is an
+# identifier, not a secret - it also appears in the external-dns target on
+# each Ingress, since that is what the CNAMEs point at.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflared-config
+data:
+  config.yaml: |
+    tunnel: e36edfb4-94b5-40ec-8ae3-66d3fe7eb479
+    credentials-file: /etc/cloudflared/creds/credentials.json
+    metrics: 0.0.0.0:2000
+    no-autoupdate: true
+
+    ingress:
+      - hostname: argocd.paveproject.org
+        service: http://traefik.traefik.svc.cluster.local:80
+      - hostname: api.paveproject.org
+        service: http://traefik.traefik.svc.cluster.local:80
+      - hostname: medias.paveproject.org
+        service: http://traefik.traefik.svc.cluster.local:80
+      # Required terminal rule: cloudflared refuses a config whose last
+      # ingress entry has a hostname.
+      - service: http_status:404

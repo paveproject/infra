@@ -2,6 +2,12 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: rustfs
+  annotations:
+    # Where this hostname's CNAME points. external-dns would otherwise
+    # take Traefik's published endpoint, which is an in-cluster DNS name -
+    # see ../../core/services/external-dns/values.yaml. The id is the
+    # tunnel's, same as in cloudflared's configmap.
+    external-dns.alpha.kubernetes.io/target: e36edfb4-94b5-40ec-8ae3-66d3fe7eb479.cfargotunnel.com
 spec:
   ingressClassName: traefik
   rules:

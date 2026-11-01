@@ -17,7 +17,8 @@ import { applyRootAppStep } from "../steps/10-apply-root-app.js";
 
 /**
  * The bootstrap layer, in dependency order. Everything after the root app
- * is GitOps: ArgoCD owns Traefik, cloudflared, the apps and the rest. ESO and its ClusterSecretStore are deliberately
+ * is GitOps: ArgoCD owns Traefik, cloudflared, external-dns, the apps and
+ * the rest. ESO and its ClusterSecretStore are deliberately
  * here and not in ArgoCD - see steps 05 and 09 for why a repo that may go
  * private forces that.
  *

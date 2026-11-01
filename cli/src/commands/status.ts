@@ -103,6 +103,7 @@ const CHECKS = [
   argoAppCheck("argocd", "ArgoCD Ingress + webhook"),
   argoAppCheck("traefik", "Traefik"),
   argoAppCheck("cloudflared", "Cloudflare tunnel"),
+  argoAppCheck("external-dns", "external-dns"),
   argoAppCheck("apps-root", "Apps app-of-apps"),
   argoAppCheck("ghcr-pull-secret", "GHCR pull secret"),
   argoAppCheck("postgres", "Postgres"),
