@@ -12,7 +12,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/paveproject/infra.git
-    targetRevision: main
+    targetRevision: vcluster
     path: kubernetes/apps/services/notify
   destination:
     server: https://kubernetes.default.svc

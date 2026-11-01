@@ -29,9 +29,9 @@ spec:
           envFrom:
             - secretRef:
                 name: postgres-credentials
-          # Sized for a single small Hetzner node (4GB total), not
-          # Recomend's multi-node pool (4-8Gi there) - revisit with
-          # `kubectl top pod` once this carries real traffic.
+          # Deliberately small - this is dev, not Recomend's pool (4-8Gi
+          # there). Revisit with `kubectl top pod` if it starts carrying
+          # real traffic.
           resources:
             requests:
               memory: "256Mi"

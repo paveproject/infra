@@ -11,7 +11,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/paveproject/infra.git
-    targetRevision: main
+    targetRevision: vcluster
     path: kubernetes/core/applications
     directory:
       recurse: true

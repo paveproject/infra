@@ -1,0 +1,29 @@
+# Traefik was never in this repo: k3s bundled it as an addon and the
+# manifests only ever referenced `ingressClassName: traefik`. A vcluster
+# bundles nothing, so it has to be declared.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+helmCharts:
+  - name: traefik
+    repo: https://traefik.github.io/charts
+    version: 41.6.1
+    releaseName: traefik
+    namespace: traefik
+    valuesInline:
+      # ClusterIP, not LoadBalancer — the one real difference from homelab's
+      # Traefik. cloudflared runs beside it and dials OUT to Cloudflare, then
+      # proxies to this Service internally, so nothing has to be reachable
+      # from outside and no address is taken from the platform's Cilium pool.
+      # Traefik therefore has no presence on the cluster VLAN at all, which
+      # is one less thing for the tenant's network policy to reason about.
+      # service.spec.type, not service.type — the chart passes `service.spec`
+      # straight through to the Service spec and ignores anything else, so
+      # the shorter spelling is accepted and silently does nothing.
+      service:
+        spec:
+          type: ClusterIP
+
+      ingressClass:
+        enabled: true
+        isDefaultClass: true

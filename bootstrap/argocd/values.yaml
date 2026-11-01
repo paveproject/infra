@@ -5,12 +5,12 @@
 # Application, so a bad sync can never take down the thing doing the
 # syncing. Only its Ingress lives under kubernetes/core/services/argocd.
 server:
-  insecure: true # no TLS cert yet on first boot; cert-manager + Ingress take over once kubernetes/core is live
+  insecure: true # TLS is terminated at Cloudflare's edge, not here — see kubernetes/core/services/cloudflared
   extraArgs:
     - --insecure
 
 configs:
   cm:
-    # --enable-helm: inflate `helmCharts:` blocks (cert-manager,
-    #   external-secrets, used all over kubernetes/*/services/*).
+    # --enable-helm: inflate `helmCharts:` blocks (traefik and others
+    #   under kubernetes/*/services/*).
     kustomize.buildOptions: "--enable-helm"

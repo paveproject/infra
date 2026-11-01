@@ -1,6 +1,6 @@
 # pave infra CLI
 
-Single CLI for installing and managing the Pave Hetzner k3s cluster. UI:
+Single CLI for installing and managing Pave's tenant cluster. UI:
 [Listr2](https://listr2.kischnerd.de/) for step progress,
 [`@clack/prompts`](https://www.npmjs.com/package/@clack/prompts) for
 prompts/menu.
@@ -18,9 +18,10 @@ bun start install  # jump straight to install
 bun start status   # jump straight to status
 ```
 
-Requires `HCLOUD_TOKEN` (a Hetzner Cloud API token) in the environment.
-Optionally `INFISICAL_MACHINE_IDENTITY_CLIENT_ID`/`_SECRET` (step 6 below
-prompts interactively if unset). Copy `.env.example` to `.env` (gitignored)
+Needs `./kubeconfig` at the repo root, pointing at pave's vcluster — get
+it with `bun run src/index.ts tenant` in lxup/platform. Optionally
+`INFISICAL_MACHINE_IDENTITY_CLIENT_ID`/`_SECRET` (step 6 below prompts
+interactively if unset). Copy `.env.example` to `.env` (gitignored)
 to set these once instead of exporting them every shell session — Bun
 auto-loads `cli/.env`, no extra config needed.
 
@@ -33,20 +34,21 @@ private.
 
 ### Install
 
-Same command for the very first boot and for reconciling an
-already-running cluster against `hetzner/cluster_config.yaml` later (e.g.
-after adding a worker pool). See `src/commands/install.ts`. Steps run in
+Same command for the very first run and for reconciling an ArgoCD that is
+already there. It does **not** create a cluster: `./kubeconfig` must
+already point at pave's vcluster (`bun run src/index.ts tenant` in
+lxup/platform writes it). See `src/commands/install.ts`. Steps run in
 order from `src/steps/`, numbered, each a plain `ListrTask<InstallCtx>` —
 **every step file has a `Doc:` comment above it explaining what it does
 and why**, read those before changing one:
 
-1. Read cluster shape from `hetzner/cluster_config.yaml`.
-2. Check required tools (`hetzner-k3s`, `helm`, `kubectl`) and that
-   `HCLOUD_TOKEN` is set.
-3. `hetzner-k3s create --config hetzner/cluster_config.yaml` — provisions
-   the node(s), installs k3s, writes `./kubeconfig`. One call replaces
-   what would otherwise be a multi-step provisioner dance.
-4. Wait for all nodes to go `Ready`.
+1. Check whether ArgoCD is already installed — bootstrap or reconcile.
+2. Check required tools (`helm`, `kubectl`).
+3. Verify `./kubeconfig`: present, API answering, and pointing at the
+   **tenant** rather than the host cluster. It refuses to continue
+   otherwise, since installing a second ArgoCD into the platform's own
+   cluster is not a mistake you want to make quietly.
+4. Wait for the vcluster's API server to report `/readyz`.
 5. Install External Secrets Operator (`helm upgrade --install` —
    idempotent). Stays imperative, never GitOps-managed: it's the root of
    trust for every Secret in the cluster, including the ArgoCD repository
@@ -65,15 +67,14 @@ and why**, read those before changing one:
 10. Apply `kubernetes/core/root.yaml` — ArgoCD takes over from here
     (idempotent `kubectl apply`).
 
-Safe to re-run end to end at any time — `hetzner-k3s create` itself diffs
-the running cluster against the config file.
+Safe to re-run end to end at any time: every step is either a read, an
+idempotent `helm upgrade --install`, or a `kubectl apply`.
 
 ### Status
 
 `src/commands/status.ts` checks the health of every core component and
 offers to fix what it can, without fighting GitOps:
 
-- **Cluster nodes** — checked directly via `kubectl` (not ArgoCD-managed).
 - **External Secrets Operator** — checked via its Helm release +
   Deployment, same as ArgoCD below (not an ArgoCD `Application` — see
   step 5). If missing or unhealthy, the fix re-runs ESO + the
@@ -82,8 +83,8 @@ offers to fix what it can, without fighting GitOps:
   unhealthy, the fix re-runs the ArgoCD install step.
 - **Root app-of-apps** — checked as an ArgoCD `Application` named `root`.
   If missing, the fix re-applies `kubernetes/core/root.yaml`.
-- Everything else (`cert-manager`, `external-dns`, the nested
-  `apps-root` app-of-apps, `postgres`, `redis`, `api`, `notify`,
+- Everything else (`argocd`'s Ingress, `traefik`, `cloudflared`, the
+  nested `apps-root` app-of-apps, `postgres`, `redis`, `api`, `notify`,
   `rustfs`) — checked as ArgoCD `Application` health/sync status. The fix
   requests a hard refresh; actual reconciliation is still ArgoCD's job
   (`automated: { prune: true, selfHeal: true }` on every Application).
@@ -105,6 +106,5 @@ src/
     paths.ts         repo-relative paths
     exec.ts          execa wrapper that streams into Listr2 task output
     kubectl.ts       read-only + light-touch kubectl/helm/argo helpers for status
-    retry.ts         retry-with-backoff for "nodes still booting" steps
-    clusterconfig.ts parses hetzner/cluster_config.yaml for the cluster shape
+    retry.ts         retry-with-backoff for "API not serving yet" steps
 ```

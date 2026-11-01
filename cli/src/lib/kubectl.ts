@@ -12,24 +12,6 @@ async function kubectlJson<T>(args: string[]): Promise<T | null> {
   }
 }
 
-export interface NodeStatus {
-  total: number;
-  ready: number;
-}
-
-export async function getNodesStatus(): Promise<NodeStatus | null> {
-  const list = await kubectlJson<{
-    items: Array<{ status: { conditions: Array<{ type: string; status: string }> } }>;
-  }>(["get", "nodes"]);
-  if (!list) return null;
-
-  const ready = list.items.filter((n) =>
-    n.status.conditions.some((c) => c.type === "Ready" && c.status === "True"),
-  ).length;
-
-  return { total: list.items.length, ready };
-}
-
 export async function getDeploymentReady(namespace: string, name: string) {
   const dep = await kubectlJson<{ status: { replicas?: number; readyReplicas?: number } }>([
     "get",
@@ -81,10 +63,6 @@ export async function refreshArgoApplication(name: string) {
     ],
     { env },
   );
-}
-
-export async function applyManifest(path: string) {
-  await execa("kubectl", ["apply", "-f", path], { env });
 }
 
 export async function crdExists(name: string): Promise<boolean> {

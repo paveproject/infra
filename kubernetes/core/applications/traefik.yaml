@@ -1,21 +1,20 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: external-dns
+  name: traefik
   namespace: argocd
   annotations:
-    # After external-secrets (-10) so its ClusterSecretStore is ready for
-    # cloudflare-api-token to resolve. Doesn't need to race cert-manager.
+    # Before the apps, whose Ingresses need an ingress class to exist.
     argocd.argoproj.io/sync-wave: "-5"
 spec:
   project: default
   source:
     repoURL: https://github.com/paveproject/infra.git
-    targetRevision: main
-    path: kubernetes/core/services/external-dns
+    targetRevision: vcluster
+    path: kubernetes/core/services/traefik
   destination:
     server: https://kubernetes.default.svc
-    namespace: external-dns
+    namespace: traefik
   syncPolicy:
     automated:
       prune: true

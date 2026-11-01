@@ -3,7 +3,6 @@ import pc from "picocolors";
 import {
   getArgoApplication,
   getDeploymentReady,
-  getNodesStatus,
   helmReleaseExists,
   refreshArgoApplication,
 } from "../lib/kubectl.js";
@@ -20,18 +19,11 @@ interface CheckResult {
   fix?: { label: string; run: () => Promise<void> };
 }
 
-async function checkNodes(): Promise<CheckResult> {
-  const nodes = await getNodesStatus();
-  if (!nodes) return { key: "nodes", label: "Cluster nodes", health: "missing", detail: "no kubeconfig / cluster unreachable" };
-  const health: Health = nodes.ready === nodes.total ? "ok" : "degraded";
-  return { key: "nodes", label: "Cluster nodes", health, detail: `${nodes.ready}/${nodes.total} Ready` };
-}
-
 async function checkArgocd(): Promise<CheckResult> {
   const installed = await helmReleaseExists("argocd", "argocd");
   if (!installed) {
     return {
-      key: "argocd",
+      key: "argocd-helm",
       label: "ArgoCD",
       health: "missing",
       detail: "helm release not found",
@@ -41,7 +33,7 @@ async function checkArgocd(): Promise<CheckResult> {
   const dep = await getDeploymentReady("argocd", "argocd-server");
   const health: Health = dep && dep.ready === dep.desired && dep.desired > 0 ? "ok" : "degraded";
   return {
-    key: "argocd",
+    key: "argocd-helm",
     label: "ArgoCD",
     health,
     detail: dep ? `argocd-server ${dep.ready}/${dep.desired} ready` : "argocd-server not found",
@@ -105,16 +97,15 @@ function argoAppCheck(key: string, label: string) {
 }
 
 const CHECKS = [
-  checkNodes,
   checkExternalSecrets,
   checkArgocd,
   checkRootApp,
-  argoAppCheck("cert-manager", "cert-manager"),
-  argoAppCheck("external-dns", "external-dns"),
+  argoAppCheck("argocd", "ArgoCD Ingress + webhook"),
+  argoAppCheck("traefik", "Traefik"),
+  argoAppCheck("cloudflared", "Cloudflare tunnel"),
   argoAppCheck("apps-root", "Apps app-of-apps"),
   argoAppCheck("ghcr-pull-secret", "GHCR pull secret"),
   argoAppCheck("postgres", "Postgres"),
-  argoAppCheck("db-migrator", "DB migrator"),
   argoAppCheck("redis", "Redis"),
   argoAppCheck("api", "API"),
   argoAppCheck("notify", "Notify"),
@@ -124,7 +115,7 @@ const CHECKS = [
 const ICON: Record<Health, string> = { ok: pc.green("●"), degraded: pc.yellow("●"), missing: pc.red("●") };
 
 export async function runStatus() {
-  p.intro(pc.bgCyan(pc.black(" cluster status ")));
+  p.intro(pc.bgCyan(pc.black(" pave status ")));
 
   const spin = p.spinner();
   spin.start("Checking cluster components");

@@ -1,7 +1,7 @@
 # Nested app-of-apps: the actual Pave services (postgres, redis, api,
 # notify, rustfs) live under kubernetes/apps, separate from this cluster's
-# own infra (argocd, cert-manager) - each can be added to/removed from
-# independently of the other.
+# own infra (argocd, traefik, cloudflared) - each can be added to/removed
+# from independently of the other.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -11,7 +11,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/paveproject/infra.git
-    targetRevision: main
+    targetRevision: vcluster
     path: kubernetes/apps/applications
     directory:
       recurse: true

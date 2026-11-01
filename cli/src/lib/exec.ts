@@ -3,8 +3,8 @@ import type { ListrTaskWrapper } from "listr2";
 
 /**
  * Run a command, streaming stdout/stderr lines into the Listr2 task's live
- * output area so long-running steps (helm installs, hetzner-k3s create,
- * etc.) show progress instead of looking frozen.
+ * output area so long-running steps (helm installs, rollout waits, etc.)
+ * show progress instead of looking frozen.
  */
 export async function run(
   task: ListrTaskWrapper<any, any, any>,

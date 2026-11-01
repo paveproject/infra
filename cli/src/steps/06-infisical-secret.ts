@@ -19,8 +19,8 @@ import { kubeconfigPath } from "../lib/paths.js";
  * stuck in an auth error until this exists.
  *
  * Safe to re-run: skips prompting if the Secret already exists. Accepts
- * INFISICAL_MACHINE_IDENTITY_CLIENT_ID/_SECRET env vars (same pattern as
- * HCLOUD_TOKEN) for non-interactive runs, otherwise prompts.
+ * INFISICAL_MACHINE_IDENTITY_CLIENT_ID/_SECRET env vars for
+ * non-interactive runs, otherwise prompts.
  */
 export const infisicalSecretStep: ListrTask<InstallCtx> = {
   title: "Create infisical-auth secret for External Secrets Operator",

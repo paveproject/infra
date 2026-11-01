@@ -2,13 +2,13 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: postgres-data
-  annotations:
-    resize.topolvm.io/storage_limit: "50Gi"
-    resize.topolvm.io/threshold: "20%"
-    resize.topolvm.io/increase: "25%"
 spec:
   accessModes:
     - ReadWriteOnce
+  # Explicit rather than relying on the host's default StorageClass: the
+  # vcluster syncs the platform's classes in, and which one is default is
+  # not this repo's decision to depend on.
+  storageClassName: longhorn
   resources:
     requests:
       storage: 10Gi

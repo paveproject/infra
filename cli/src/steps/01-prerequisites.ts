@@ -3,7 +3,6 @@ import { commandExists } from "../lib/exec.js";
 import type { InstallCtx } from "../lib/context.js";
 
 const REQUIRED = [
-  { bin: "hetzner-k3s", brew: "vitobotta/tap/hetzner-k3s" },
   { bin: "helm", brew: "helm" },
   { bin: "kubectl", brew: "kubectl" },
 ];
@@ -18,10 +17,6 @@ export const prerequisitesStep: ListrTask<InstallCtx> = {
       const ok = await commandExists(bin);
       task.output = `${ok ? "✓" : "✗"} ${bin}`;
       if (!ok) missing.push(brew);
-    }
-
-    if (!process.env.HCLOUD_TOKEN) {
-      throw new Error("HCLOUD_TOKEN environment variable must be set (a Hetzner Cloud API token).");
     }
 
     if (missing.length > 0) {

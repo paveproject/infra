@@ -1,0 +1,69 @@
+# How this tenant is reachable from the internet at all.
+#
+# On Hetzner the node had a public IP and k3s's servicelb bound 80/443 on it.
+# At home there is one port-forward on the UDM Pro and it belongs to the
+# homelab tenant's Traefik, so an inbound path simply is not available. A
+# tunnel is not a preference here, it is the only option.
+#
+# It is also the better one for this workload: API and web traffic, so no
+# throughput concern and no brush with Cloudflare's proxied-request size cap,
+# plus edge caching for free and the home WAN IP absent from public DNS.
+#
+# Two replicas because cloudflared holds long-lived outbound connections —
+# one pod being rescheduled would otherwise drop every request in flight.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cloudflared
+  template:
+    metadata:
+      labels:
+        app: cloudflared
+    spec:
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:2026.9.1
+          args:
+            - tunnel
+            - --no-autoupdate
+            # Image tag is pinned and bumped deliberately, so let the
+            # container exit rather than rewrite its own binary.
+            - --metrics
+            - 0.0.0.0:2000
+            - run
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cloudflared-token
+                  key: token
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: 2000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 2000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 20m
+              memory: 48Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 65532
+            capabilities:
+              drop: ["ALL"]

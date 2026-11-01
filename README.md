@@ -1,13 +1,19 @@
 # infra
 
-GitOps bootstrap for the Pave platform: a single k3s node on Hetzner,
-ArgoCD watching this repo, everything else (cert-manager, External
-Secrets Operator, external-dns, the Pave services) deployed as ArgoCD
-`Application`s from `kubernetes/`.
+GitOps bootstrap for the Pave platform: ArgoCD watching this repo, and
+everything else (Traefik, cloudflared, External Secrets Operator, the Pave
+services) deployed as ArgoCD `Application`s from `kubernetes/`.
 
-No Terraform, no Velero, no Load Balancer yet — see `cli/README.md` and
-the commit history for why each of those is deliberately absent for now.
-All of it is addable later without touching the GitOps structure.
+This repo does not create its cluster. It runs as a tenant in a virtual
+cluster declared in [lxup/platform](https://github.com/lxup/platform), and
+the only thing crossing that boundary is a kubeconfig — see
+`cli/src/lib/paths.ts`. Nothing below assumes a particular machine
+underneath.
+
+Reachable from the internet through a Cloudflare tunnel, not an inbound
+port: the cluster has no public address of its own. See
+`kubernetes/core/services/cloudflared/secret.yaml` for the one piece of
+setup that lives in Cloudflare's dashboard rather than here.
 
 ## Run it
 
@@ -27,9 +33,8 @@ See `cli/README.md` for what each step does.
 bootstrap/argocd/           one-shot Helm values to get ArgoCD running, plus its repo-read credential
 bootstrap/external-secrets/ one-shot Helm values for External Secrets Operator (ESO)
 bootstrap/infisical/        the ClusterSecretStore every ExternalSecret in the repo points at
-hetzner/                    hetzner-k3s cluster config
 kubernetes/
-  core/                ArgoCD, cert-manager, external-dns, monitoring, pvc-autoresizer - the cluster's own infra
+  core/                ArgoCD's Ingress, Traefik, cloudflared - the cluster's own infra
   apps/                the actual Pave services (postgres, redis, api, notify, rustfs, ghcr-pull-secret) - db-migrator rides along inside api's own Application, not a service of its own
 cli/                   the bootstrap/status CLI
 ```
@@ -44,7 +49,7 @@ already being able to do that.
 `core` and `apps` are each their own ArgoCD app-of-apps (`core/root.yaml`,
 and `core/applications/apps-root.yaml` nesting into `apps/applications`) -
 Pave's own services can be added/removed without touching the
-cert-manager/argocd layer underneath them.
+argocd/traefik layer underneath them.
 
 ## Secrets
 
@@ -96,7 +101,7 @@ Every other key below needs a real value in Infisical, by service:
 | rustfs | `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY` (+ `S3_BUCKET_PUBLIC`, shared with api) |
 | rustfs (backup target) | same `BACKUP_S3_*` keys as postgres's backup target - one R2 bucket, two CronJobs writing under different prefixes |
 | argocd | `ARGOCD_WEBHOOK_SECRET` |
-| external-dns | `CLOUDFLARE_API_TOKEN` |
+| cloudflared | `CLOUDFLARE_TUNNEL_TOKEN` |
 | argocd + ghcr-pull-secret | `GITHUB_USERNAME`, `GITHUB_TOKEN` - one classic GitHub PAT, shared by both (see below) |
 
 `BACKUP_S3_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY` are named `BACKUP_S3_*`
@@ -148,7 +153,7 @@ check in `webhook-app-store-connect/guard.rs` verifies against.
 3. Create a Machine Identity (Universal Auth) scoped to read that project/environment, generate a Client ID + Client Secret - the CLI's `install` step prompts for these (or pass via `INFISICAL_MACHINE_IDENTITY_CLIENT_ID`/`_SECRET` env vars) and stores them as the `infisical-auth` Secret the `ClusterSecretStore` reads.
 4. For `pave`'s mobile CI secrets: in the Infisical project, Integrations → GitHub sync → point at `paveproject/pave` (**repository** scope, not organization - org-level Actions secrets need a paid GitHub plan for private repos), mapping each secret to the exact GitHub secret name already referenced in that repo's workflows.
 5. For the ArgoCD webhook: on `paveproject/infra` → Settings → Webhooks → Add webhook, payload URL `https://argocd.paveproject.org/api/webhook`, content type `application/json`, secret = the same value as `ARGOCD_WEBHOOK_SECRET`, event = push only.
-6. For `CLOUDFLARE_API_TOKEN`: in the Cloudflare dashboard, create an API token (not the Global API Key) scoped to **Zone → DNS → Edit**, restricted to the `paveproject.org` zone only.
+6. For `CLOUDFLARE_TUNNEL_TOKEN`: Cloudflare dashboard → Zero Trust → Networks → Tunnels → create a tunnel, copy its token, then add the three public hostnames to it. Full instructions, including the exact origin service to point them at, are in `kubernetes/core/services/cloudflared/secret.yaml`.
 7. For `GITHUB_USERNAME`/`GITHUB_TOKEN`: one **classic** GitHub PAT (scopes aren't per-repo on classic tokens, which is what lets one token cover both uses below) with `repo` + `read:packages` scopes. Used by:
    - ArgoCD's own credential to clone `paveproject/infra` (`bootstrap/argocd/github-repo.yaml`, applied by `cli/` step 9) - harmless while this repo is public, required the moment it's switched to private, since ArgoCD would otherwise be unable to read any manifest here at all, including the one that updates this credential.
    - `ghcr-pull-secret`, only needed if `ghcr.io/paveproject/pave-*` packages are private.
@@ -161,37 +166,29 @@ check in `webhook-app-store-connect/guard.rs` verifies against.
 - `argocd.paveproject.org` - ArgoCD UI
 - `medias.paveproject.org` - RustFS (S3-compatible storage, public bucket named by `S3_BUCKET_PUBLIC`)
 
-All three are managed automatically by `external-dns` - it watches every
-Ingress and keeps Cloudflare A records pointed at whatever IP Traefik
-reports, no manual DNS entry needed. `--cloudflare-proxied`: traffic is
-proxied through Cloudflare (hidden origin IP, their WAF/DDoS protection),
-which is transparent to cert-manager's HTTP-01 challenges.
+Each one is a public hostname on the Cloudflare tunnel, and Cloudflare
+creates its CNAME when you add it — which is why there is no external-dns
+here. All three point at the same in-cluster Traefik, which routes on the
+Host header the way it always did.
+
+There is no cert-manager either. A tunnel means Cloudflare terminates TLS
+at its edge whatever the origin speaks, so a certificate on Traefik would
+only encrypt the cloudflared→Traefik hop — a hop that never leaves this
+cluster's pod network.
 
 ## Storage
 
-PVCs for stateful services (`postgres`, `rustfs`) grow on their own via
-[pvc-autoresizer](https://github.com/topolvm/pvc-autoresizer)
-(`kubernetes/core/applications/pvc-autoresizer.yaml`): each PVC carries
-`resize.topolvm.io/threshold`/`/increase`/`/storage_limit` annotations
-(see `kubernetes/apps/services/{postgres,rustfs}/pvc.yaml`), and the
-controller bumps `spec.resources.requests.storage` once usage crosses
-the threshold, up to the limit - no manual `kubectl edit pvc` the day a
-volume fills up.
+`postgres` and `rustfs` claim PVCs from `longhorn`, the StorageClass the
+vcluster syncs in from the platform. Named explicitly in both
+`pvc.yaml`s rather than taken from the host's default, since which class
+is default is not this repo's decision to depend on.
 
-It needs two things the Hetzner CSI driver doesn't provide by default:
+Longhorn keeps two replicas of every volume and backs them up to R2 on the
+platform's schedule, so neither lives here. Growing a volume is
+`kubectl edit pvc` plus a pod restart — Longhorn allows expansion. There is
+no pvc-autoresizer any more: it existed because Hetzner's CSI driver
+needed coaxing, and it dragged a whole Prometheus along just to answer
+"how full is this volume".
 
-- **Usage metrics.** `kubernetes/core/applications/monitoring.yaml`
-  installs a deliberately minimal `kube-prometheus-stack` (just
-  Prometheus itself, scraping only `kubelet_volume_stats_*` - no
-  Grafana/Alertmanager/kube-state-metrics/node-exporter, 2d retention)
-  purely so pvc-autoresizer's controller has something to query.
-- **Resize-ability on the StorageClass.** The Hetzner CSI driver's
-  `hcloud-volumes` StorageClass doesn't carry pvc-autoresizer's
-  `resize.topolvm.io/enabled: "true"` annotation out of the box;
-  `kubernetes/core/applications/hcloud-volumes-patch.yaml` patches it in
-  via server-side apply without taking ownership of (and so without
-  ArgoCD ever trying to recreate) the rest of that resource.
-
-Both are small enough to run on a single cx23 node alongside everything
-else, but they're not free - see the resource requests/limits in
-`monitoring.yaml` and `pvc-autoresizer.yaml` if the node ever feels tight.
+Monitoring is the platform's job too, and it already alerts on degraded
+and faulted Longhorn volumes for every tenant.

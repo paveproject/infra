@@ -1,6 +1,7 @@
 # infra
 
-GitOps bootstrap for the Pave platform (Hetzner k3s, ArgoCD). `README.md`
+GitOps bootstrap for the Pave platform (a vcluster tenant of
+lxup/platform, ArgoCD, a Cloudflare tunnel for ingress). `README.md`
 and `cli/README.md` are the user-facing "how to run this" docs - read
 those first. This file is the "why it's shaped this way" and the traps
 that don't show up just from reading the manifests.
@@ -86,16 +87,22 @@ isn't ESO just another Application", this is why - don't move it.
   the source path** - `rc mirror local/` fails ("Bucket name cannot be
   empty"); only `rc bucket list`/`rc ls` accept a bare alias. List
   buckets, then mirror each one.
-- **The `hcloud-volumes` StorageClass doesn't support PVC auto-resize by
-  default** - it needs `resize.topolvm.io/enabled: "true"` patched onto
-  it (`kubernetes/core/services/hcloud-volumes-patch/`); without that
-  annotation, `pvc-autoresizer` watches forever and never acts, with no
-  error anywhere.
+- **A Helm value the chart does not define is accepted and silently does
+  nothing.** Traefik's chart takes `service.spec.type`, not
+  `service.type`; the short spelling rendered a `LoadBalancer` Service
+  while the comment right above it said ClusterIP. Nothing warns. After
+  editing any `valuesInline`, render it
+  (`kubectl kustomize --enable-helm <dir>`) and check the field you meant
+  to change actually changed.
 
 ## Current known constraint
 
-The cluster is a single Hetzner cx23 (2 vCPU/4GB). Confirmed via
-`kubectl top node`: ~82% RAM used with monitoring + pvc-autoresizer
-running. Not urgent while the app stays in dev - but don't add another
-memory-hungry Application (another exporter, a second Prometheus
-target, etc.) without checking `kubectl top node`/`top pods` first.
+This tenant's budget is a `ResourceQuota` in lxup/platform
+(`kubernetes/tenants/services/pave/`), currently 4 Gi of requests and
+16 Gi of limits. The quota counts **declared limits**, not usage, and most
+of what runs here comes from Helm charts that declare no resources at all
+— the companion `LimitRange` then stamps 512 Mi of limit on each pod. So
+adding an Application costs quota even if it is idle, and when the quota
+is reached the refusal surfaces as a vcluster SyncError on the *virtual*
+pod, with nothing at all visible on the host. Count before adding, and
+raise the quota on the platform side rather than squeezing a tenant.
