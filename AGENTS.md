@@ -87,6 +87,16 @@ isn't ESO just another Application", this is why - don't move it.
   the source path** - `rc mirror local/` fails ("Bucket name cannot be
   empty"); only `rc bucket list`/`rc ls` accept a bare alias. List
   buckets, then mirror each one.
+- **Inside a vcluster, service links outrank `envFrom:`.** vcluster turns
+  off the host's service links and injects the *virtual* cluster's instead,
+  as explicit `env:` entries on the host pod — and the kubelet gives `env:`
+  precedence over `envFrom:`, where real service links come last and lose
+  to both. So a Service named `redis` shadowed `REDIS_PORT` (6379, from
+  Infisical) with `tcp://10.97.187.39:6379`, and notify panicked on
+  "invalid digit found in string". The same manifest ran fine on k3s for
+  weeks. Every pod template under `kubernetes/apps/services/` therefore
+  sets `enableServiceLinks: false`. Keep doing that on new ones: the trap
+  is silent until a key happens to collide with a Service name.
 - **A Helm value the chart does not define is accepted and silently does
   nothing.** Traefik's chart takes `service.spec.type`, not
   `service.type`; the short spelling rendered a `LoadBalancer` Service

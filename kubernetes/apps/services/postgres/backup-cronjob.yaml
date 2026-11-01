@@ -15,6 +15,7 @@ spec:
     spec:
       template:
         spec:
+          enableServiceLinks: false
           restartPolicy: OnFailure
           imagePullSecrets:
             - name: ghcr-pull-secret

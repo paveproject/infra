@@ -12,6 +12,12 @@ spec:
       labels:
         app: api
     spec:
+      # A vcluster injects the virtual cluster's service links as explicit
+      # `env:` entries, and `env:` outranks `envFrom:` — so a Service named
+      # `redis` shadows REDIS_PORT from Infisical with `tcp://10.x.x.x:6379`.
+      # On plain Kubernetes service links lose to both and this never shows.
+      # Nothing here reads a service link; every value comes from Infisical.
+      enableServiceLinks: false
       imagePullSecrets:
         - name: ghcr-pull-secret
       # Refreshes the GeoLite2 City database into `geoip-db` before `api`

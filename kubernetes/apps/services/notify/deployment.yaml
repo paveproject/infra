@@ -12,6 +12,7 @@ spec:
       labels:
         app: notify
     spec:
+      enableServiceLinks: false
       imagePullSecrets:
         - name: ghcr-pull-secret
       containers:

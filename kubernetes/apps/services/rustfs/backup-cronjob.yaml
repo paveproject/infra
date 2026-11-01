@@ -17,6 +17,7 @@ spec:
     spec:
       template:
         spec:
+          enableServiceLinks: false
           restartPolicy: OnFailure
           containers:
             - name: rustfs-mirror

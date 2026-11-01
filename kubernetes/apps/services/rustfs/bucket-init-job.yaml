@@ -21,6 +21,7 @@ spec:
   backoffLimit: 0
   template:
     spec:
+      enableServiceLinks: false
       restartPolicy: Never
       containers:
         - name: rustfs-bucket-init
