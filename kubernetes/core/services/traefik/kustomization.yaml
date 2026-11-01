@@ -27,3 +27,18 @@ helmCharts:
       ingressClass:
         enabled: true
         isDefaultClass: true
+
+      providers:
+        kubernetesIngress:
+          # A ClusterIP Service has no status.loadBalancer.ingress to copy
+          # from, so publishedService leaves every Ingress with an empty
+          # status forever — and ArgoCD reads that as Progressing, which
+          # pinned the api Application on "waiting for healthy state of
+          # Ingress/api" with the app itself running fine. Writing the
+          # Service's own DNS name in instead is both accurate (that is
+          # where the tunnel delivers traffic) and visible in
+          # `kubectl get ingress`.
+          publishedService:
+            enabled: false
+          ingressEndpoint:
+            hostname: traefik.traefik.svc.cluster.local
