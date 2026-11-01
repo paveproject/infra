@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/paveproject/infra.git
-    targetRevision: vcluster
+    targetRevision: main
     path: kubernetes/core/services/argocd
   destination:
     server: https://kubernetes.default.svc

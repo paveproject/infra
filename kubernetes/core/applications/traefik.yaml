@@ -10,7 +10,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/paveproject/infra.git
-    targetRevision: vcluster
+    targetRevision: main
     path: kubernetes/core/services/traefik
   destination:
     server: https://kubernetes.default.svc
