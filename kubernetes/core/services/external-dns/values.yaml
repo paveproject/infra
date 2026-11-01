@@ -4,7 +4,7 @@
 # CNAME, not A. There is no public IP to point at any more - traffic arrives
 # through the Cloudflare tunnel, whose address is
 # <tunnel-id>.cfargotunnel.com. Each Ingress names that in an
-# `external-dns.alpha.kubernetes.io/target` annotation; without it
+# `external-dns.kubernetes.io/target` annotation; without it
 # external-dns would read Traefik's published endpoint
 # (traefik.traefik.svc.cluster.local, see ../traefik/kustomization.yaml)
 # and write an internal DNS name into a public zone.

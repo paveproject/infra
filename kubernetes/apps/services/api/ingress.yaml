@@ -3,11 +3,15 @@ kind: Ingress
 metadata:
   name: api
   annotations:
-    # Where this hostname's CNAME points. external-dns would otherwise
-    # take Traefik's published endpoint, which is an in-cluster DNS name -
-    # see ../../core/services/external-dns/values.yaml. The id is the
-    # tunnel's, same as in cloudflared's configmap.
-    external-dns.alpha.kubernetes.io/target: e36edfb4-94b5-40ec-8ae3-66d3fe7eb479.cfargotunnel.com
+    # Where this hostname's CNAME points. Without it external-dns takes
+    # Traefik's published endpoint and writes an in-cluster DNS name into a
+    # public zone - which is a 530 on every request, confirmed the hard way.
+    # Note the prefix: `external-dns.kubernetes.io/`, NOT the
+    # `external-dns.alpha.kubernetes.io/` seen all over the internet.
+    # v0.23 stopped reading the legacy prefix by default, and an annotation
+    # under it is ignored in silence. The id is the tunnel's, same as in
+    # cloudflared's configmap.
+    external-dns.kubernetes.io/target: e36edfb4-94b5-40ec-8ae3-66d3fe7eb479.cfargotunnel.com
 spec:
   ingressClassName: traefik
   rules:
