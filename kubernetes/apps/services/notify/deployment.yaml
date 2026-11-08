@@ -17,7 +17,7 @@ spec:
         - name: ghcr-pull-secret
       containers:
         - name: notify
-          image: ghcr.io/paveproject/pave-notify:b25-1c3ef7c
+          image: ghcr.io/paveproject/pave-notify:b26-3a0a63d
           envFrom:
             - secretRef:
                 name: notify-secrets
